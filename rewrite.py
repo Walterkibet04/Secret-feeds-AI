@@ -4,7 +4,7 @@ from google import genai
 
 load_dotenv()
 
-client = genai.Client(api_key="AQ.Ab8RN6KWcs3gH0EaLjaCn445jj7mK0_O6FNjqXD1fF58zSEQkg")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL = "gemini-2.0-flash"
 
 DIVIDER = "─" * 60
