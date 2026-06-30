@@ -32,7 +32,8 @@ def run():
             log.warning("No drafts generated.")
             return
 
-        # Store in web UI (always works)
+        # Store in web UI
+        
         store_drafts(drafts)
 
         # Send email (may fail on some platforms — UI is the backup)
