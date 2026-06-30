@@ -1,6 +1,7 @@
 import os
 import threading
 import logging
+import json
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from dotenv import load_dotenv
@@ -11,10 +12,29 @@ load_dotenv()
 log = logging.getLogger(__name__)
 app = Flask(__name__)
 
-# ── IN-MEMORY DRAFT STORE ─────────────────────────────────────────────────────
-# Stores all generated drafts in memory — visible on the web UI
-_drafts = []
-MAX_DRAFTS = 100  # keep last 100 drafts
+# ── PERSISTENT DRAFT STORE ────────────────────────────────────────────────────
+# Stored on disk so drafts survive Render restarts/redeploys
+DRAFTS_FILE = "drafts_store.json"
+MAX_DRAFTS = 100
+
+def _load_drafts():
+    if os.path.exists(DRAFTS_FILE):
+        try:
+            with open(DRAFTS_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            log.warning(f"Could not load drafts file: {e}")
+    return []
+
+def _save_drafts(drafts):
+    try:
+        with open(DRAFTS_FILE, "w") as f:
+            json.dump(drafts, f)
+    except Exception as e:
+        log.warning(f"Could not save drafts file: {e}")
+
+_drafts = _load_drafts()
+log.info(f"📂 Loaded {len(_drafts)} drafts from disk on startup")
 
 
 def store_drafts(drafts: list):
@@ -23,9 +43,9 @@ def store_drafts(drafts: list):
     now = datetime.now().strftime("%b %d, %I:%M %p")
     for d in drafts:
         _drafts.insert(0, {**d, "generated_at": now})
-    # Keep only last MAX_DRAFTS
     _drafts = _drafts[:MAX_DRAFTS]
-    log.info(f"📋 {len(drafts)} drafts stored in UI ({len(_drafts)} total)")
+    _save_drafts(_drafts)
+    log.info(f"📋 {len(drafts)} drafts stored ({len(_drafts)} total, saved to disk)")
 
 
 # ── HTML ──────────────────────────────────────────────────────────────────────
