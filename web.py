@@ -196,7 +196,6 @@ document.getElementById('original').addEventListener('keydown', e => {
 def index():
     return render_template_string(HTML)
 
-
 @app.route("/rewrite", methods=["POST"])
 def rewrite_endpoint():
     data = request.get_json()

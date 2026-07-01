@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 try:
     from google import genai as google_genai
     gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    GEMINI_MODEL = "gemini-2.0-flash-lite"
+    GEMINI_MODEL = "gemini-2.5-flash"
     GEMINI_AVAILABLE = bool(os.getenv("GEMINI_API_KEY"))
 except Exception:
     GEMINI_AVAILABLE = False
