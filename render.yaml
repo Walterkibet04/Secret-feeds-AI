@@ -1,17 +1,13 @@
 services:
   - type: web
-    name: secret-feeds-bot
+    name: secret-feeds-rewriter
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: EMAIL_FROM
-        sync: false
-      - key: EMAIL_APP_PASSWORD
-        sync: false
-      - key: EMAIL_TO
-        value: walterkibet1997@gmail.com

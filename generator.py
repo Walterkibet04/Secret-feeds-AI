@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 from dotenv import load_dotenv
 
@@ -9,12 +10,24 @@ log = logging.getLogger(__name__)
 # ── GEMINI SETUP ──────────────────────────────────────────────────────────────
 try:
     from google import genai as google_genai
-    gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     GEMINI_MODEL = "gemini-2.5-flash"
-    GEMINI_AVAILABLE = bool(os.getenv("GEMINI_API_KEY"))
-except Exception:
+
+    gemini_key1 = os.getenv("GEMINI_API_KEY")
+    gemini_key2 = os.getenv("GEMINI_API_KEY_2")
+
+    gemini_clients = []
+    if gemini_key1:
+        gemini_clients.append(google_genai.Client(api_key=gemini_key1))
+    if gemini_key2:
+        gemini_clients.append(google_genai.Client(api_key=gemini_key2))
+
+    GEMINI_AVAILABLE = len(gemini_clients) > 0
+    if GEMINI_AVAILABLE:
+        log.info(f"✅ Gemini ready — {len(gemini_clients)} key(s) loaded, model: {GEMINI_MODEL}")
+except Exception as e:
     GEMINI_AVAILABLE = False
-    gemini_client = None
+    gemini_clients = []
+    log.warning(f"⚠️  Gemini not available: {e}")
 
 # ── GROQ SETUP (fallback) ─────────────────────────────────────────────────────
 try:
@@ -27,7 +40,7 @@ except Exception:
 
 SYSTEM_PROMPT = """You write tweets for Secret Feeds, a global news and geopolitics account on X.
 Simple English. Direct and clear. Never vague or cryptic. Short sentences. Active voice.
-Must NOT sound copy-pasted or AI-generated."""
+Must NOT sound copy-pasted or AI-generated. Never wrap output in quotation marks."""
 
 REWRITE_PROMPT = """You are helping rewrite a tweet for Secret Feeds, a news account on X.
 
@@ -41,51 +54,71 @@ STRICT RULES:
 5. Use simple everyday English
 6. Just rearrange the sentence structure and swap some words with synonyms
 7. Keep it under 4000 characters (X Premium account)
-8. Do not add hashtags or emojis unless the original has them
+8. Do NOT add hashtags or emojis unless the original has them
+9. Do NOT wrap the output in quotes — write the tweet text directly, no quotation marks around it
+10. Keep the same tense as the original — if the original uses present tense ("is", "are", "has"), keep present tense. If past tense ("was", "were"), keep past tense. Never change the tense.
 
-If the original says "235 people died", your version must still say "235 people died" — not "hundreds died".
+Examples of tense to preserve:
+- Original: "Explosions reported around Bandar Abbas" → Keep: "Explosions have been reported near Bandar Abbas" ✅
+- Wrong: "Explosions were reported around Bandar Abbas" (changed to past tense) ❌
 
 Original tweet:
 "{tweet}"
 
-Write ONLY the rewritten tweet. Nothing else."""
+Write ONLY the rewritten tweet. No quotes around it. No explanation."""
 
 
 def call_ai(prompt: str) -> str:
-    """Try Gemini first, fall back to Groq if Gemini fails or hits limits."""
+    """Try each Gemini key in turn, then fall back to Groq."""
 
-    if GEMINI_AVAILABLE and gemini_client:
-        try:
-            response = gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt
-            )
-            return response.text.strip()
-        except Exception as e:
-            err = str(e)
-            if "429" in err or "RESOURCE_EXHAUSTED" in err or "quota" in err.lower():
-                log.warning("⚠️  Gemini quota hit — switching to Groq fallback")
-            elif "API_KEY" in err or "api_key" in err.lower():
-                log.warning("⚠️  Gemini API key issue — switching to Groq fallback")
-            else:
-                log.warning(f"⚠️  Gemini error — switching to Groq: {err[:80]}")
+    if GEMINI_AVAILABLE and gemini_clients:
+        for key_index, client in enumerate(gemini_clients):
+            key_label = f"Gemini key {key_index + 1}"
+            for attempt in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt
+                    )
+                    log.info(f"  ✅ {key_label} succeeded")
+                    return response.text.strip()
+                except Exception as e:
+                    err = str(e)
+                    if "429" in err or "RESOURCE_EXHAUSTED" in err:
+                        if attempt == 0:
+                            log.warning(f"⚠️  {key_label} 429 — retrying in 10s")
+                            time.sleep(10)
+                            continue
+                        else:
+                            log.warning(f"⚠️  {key_label} 429 again — trying next key")
+                            break
+                    else:
+                        log.warning(f"⚠️  {key_label} error — trying next key: {err[:80]}")
+                        break
 
     if GROQ_AVAILABLE and groq_client:
-        try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                max_tokens=1500,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            log.info("  ✅ Used Groq fallback")
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            log.error(f"Groq also failed: {e}")
+        for attempt in range(2):
+            try:
+                response = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    max_tokens=1500,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                )
+                log.info("  ✅ Used Groq fallback")
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                err = str(e)
+                if "429" in err and attempt == 0:
+                    log.warning("⚠️  Groq 429 — retrying in 60s")
+                    time.sleep(60)
+                    continue
+                log.error(f"Groq failed: {e}")
+                break
 
-    raise RuntimeError("Both Gemini and Groq failed. Check your API keys.")
+    raise RuntimeError("All AI keys exhausted. Try again in a few minutes.")
 
 
 def rewrite_tweet(original: str) -> str:
