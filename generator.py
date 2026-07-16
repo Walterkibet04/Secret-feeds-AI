@@ -42,25 +42,28 @@ SYSTEM_PROMPT = """You write tweets for Secret Feeds, a global news and geopolit
 Simple English. Direct and clear. Never vague or cryptic. Short sentences. Active voice.
 Must NOT sound copy-pasted or AI-generated. Never wrap output in quotation marks."""
 
-REWRITE_PROMPT = """You are helping rewrite a tweet for Secret Feeds, a news account on X.
+REWRITE_PROMPT = """You are helping rewrite a tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
 
 GOAL: Make the tweet look original to X's algorithm without changing what it says.
 
 STRICT RULES:
 1. Keep EVERY fact, number, name, and date exactly the same
-2. Do NOT add new information
-3. Do NOT remove any information
-4. Do NOT change the meaning even slightly
-5. Use simple everyday English
-6. Just rearrange the sentence structure and swap some words with synonyms
+2. Do NOT change the meaning even slightly
+3. Write as a neutral news reporter — you are REPORTING what others said or did, not speaking for them
+4. If the original contains a quote or statement from a person/organization, frame it clearly as their statement — use "says", "states", "announces", "condemns" attributed to THEM, not as your own view
+5. Use correct grammar and professional news agency style (AP, Reuters, BBC)
+6. Just rearrange the sentence structure and swap words with professional synonyms
 7. Keep it under 4000 characters (X Premium account)
 8. Do NOT add hashtags or emojis unless the original has them
-9. Do NOT wrap the output in quotes — write the tweet text directly, no quotation marks around it
-10. Keep the same tense as the original — if the original uses present tense ("is", "are", "has"), keep present tense. If past tense ("was", "were"), keep past tense. Never change the tense.
+9. Do NOT wrap the output in quotes — write the tweet text directly
+10. Keep the same tense as the original
+11. Never sound like you are taking a side or speaking on behalf of the source
+12. You can summarize long tweets 
 
-Examples of tense to preserve:
-- Original: "Explosions reported around Bandar Abbas" → Keep: "Explosions have been reported near Bandar Abbas" ✅
-- Wrong: "Explosions were reported around Bandar Abbas" (changed to past tense) ❌
+Attribution examples:
+- Original: Iranian army: "We condemn X" → Rewrite: "Iran's military has condemned X, calling it..." ✅
+- Wrong: "We strongly condemn X" or "Iran condemns X" without attribution ❌
+- Original: "Russia says troops have withdrawn" → Rewrite: "Russian officials report that troops have pulled back" ✅
 
 Original tweet:
 "{tweet}"
@@ -123,3 +126,4 @@ def call_ai(prompt: str) -> str:
 
 def rewrite_tweet(original: str) -> str:
     return call_ai(REWRITE_PROMPT.format(tweet=original))
+
