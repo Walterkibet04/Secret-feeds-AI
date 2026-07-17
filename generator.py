@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 # ── GEMINI SETUP ──────────────────────────────────────────────────────────────
 try:
     from google import genai as google_genai
-    GEMINI_MODEL = "gemini-2.5-flash"
+    GEMINI_MODEL = "gemini-2.5-flash-lite"
 
     gemini_key1 = os.getenv("GEMINI_API_KEY")
     gemini_key2 = os.getenv("GEMINI_API_KEY_2")
