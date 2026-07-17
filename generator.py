@@ -32,8 +32,8 @@ except Exception as e:
 # ── GROQ SETUP ────────────────────────────────────────────────────────────────
 try:
     from groq import Groq
-    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    GROQ_AVAILABLE = bool(os.getenv("GROQ_API_KEY"))
+    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY_1"))
+    GROQ_AVAILABLE = bool(os.getenv("GROQ_API_KEY_1"))
 except Exception:
     GROQ_AVAILABLE = False
     groq_client = None
