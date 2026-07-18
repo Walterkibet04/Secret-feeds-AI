@@ -88,8 +88,7 @@ STRICT RULES:
 12. Keep the same tense as the original
 13. Never sound like you are taking a side or speaking on behalf of the source
 14: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
-15. Never include calls to action, engagement prompts, or phrases soliciting replies, likes, or follows.
-Original tweet:
+
 "{tweet}"
 
 Write ONLY the rewritten tweet. No quotes around it. No explanation."""
@@ -113,8 +112,7 @@ STRICT RULES:
 12. Never copy more than 3 consecutive words from the original
 13. Keep the same tense as the original
 14. Never include calls to action, engagement prompts, or phrases soliciting replies, likes, or follows.
-15. You must identify its true meaning first and undersand the original tweet so don't write something that is confusing
-Content to summarise:
+
 "{content}"
 
 Write ONLY the summary tweet. No quotes around it. No explanation."""
@@ -133,7 +131,6 @@ STRICT RULES:
 7. Keep the same tense as the original
 8. REWRITE the wording — do not just swap one word. Change the sentence structure completely
 9. Try not to use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
-10. You must identify its true meaning first and undersand the original tweet so don't write something that is confusing
 
 
 Examples of good rewriting:
