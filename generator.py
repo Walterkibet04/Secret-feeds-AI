@@ -75,7 +75,6 @@ GOAL: Make the tweet look original to X's algorithm without changing what it say
 
 STRICT RULES:
 1. Keep EVERY fact, number, name, and date exactly the same
-2. 2. Do NOT add new information
 3. Do NOT remove any information
 4. Do NOT change the meaning even slightly
 5. Write as a neutral news reporter — REPORTING what others said or did, not speaking for them
