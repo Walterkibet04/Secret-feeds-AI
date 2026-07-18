@@ -133,7 +133,7 @@ STRICT RULES:
 7. Present tense or simple past — keep it punchy
 8. REWRITE the wording — do not just swap one word. Change the sentence structure completely
 9. Never use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
-10. Never copy more than 2 consecutive words from the original
+
 
 Examples of good rewriting:
 - Original: "🇮🇷🇺🇸 Iran strikes US military fuel terminal in Kuwait"
