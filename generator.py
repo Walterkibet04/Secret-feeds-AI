@@ -75,19 +75,18 @@ GOAL: Make the tweet look original to X's algorithm without changing what it say
 
 STRICT RULES:
 1. Keep EVERY fact, number, name, and date exactly the same
-2. Do NOT add new information
-3. Do NOT remove any information
-4. Do NOT change the meaning even slightly
-5. Write as a neutral news reporter — REPORTING what others said or did, not speaking for them
-6. If the original contains a quote or statement from a person/organization, frame it as their statement — attributed to THEM
-7. Use correct grammar and professional news agency style (AP, Reuters, BBC)
-8. Just rearrange the sentence structure and swap words with professional synonyms
-9. Keep it under 4000 characters (X Premium account)
-10. Do NOT add hashtags or emojis unless the original has them
-11. Do NOT wrap the output in quotes — write the tweet text directly
-12. Keep the same tense as the original
-13. Never sound like you are taking a side or speaking on behalf of the source
-14: Use relevant country flag emojis if countries are involved (e.g. 🇺🇸🇮🇷)
+2. Do NOT remove any information
+3. Do NOT change the meaning even slightly
+4. Write as a neutral news reporter — REPORTING what others said or did, not speaking for them
+5. If the original contains a quote or statement from a person/organization, frame it as their statement — attributed to THEM
+6. Use correct grammar and professional news agency style (AP, Reuters, BBC, CNN, Aljazeera)
+7. Just rearrange the sentence structure and swap words with professional synonyms
+8. Keep it under 4000 characters (X Premium account)
+9. Do NOT add hashtags unless the original has them
+10. Do NOT wrap the output in quotes — write the tweet text directly
+11. Keep the same tense as the original
+12. Never sound like you are taking a side or speaking on behalf of the source
+13: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
 
 Original tweet:
 "{tweet}"
