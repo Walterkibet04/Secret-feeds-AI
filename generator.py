@@ -87,6 +87,7 @@ STRICT RULES:
 11. Do NOT wrap the output in quotes — write the tweet text directly
 12. Keep the same tense as the original
 13. Never sound like you are taking a side or speaking on behalf of the source
+14: Use relevant country flag emojis if countries are involved (e.g. 🇺🇸🇮🇷)
 
 Original tweet:
 "{tweet}"
