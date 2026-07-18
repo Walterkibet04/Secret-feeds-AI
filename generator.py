@@ -95,19 +95,21 @@ Write ONLY the rewritten tweet. No quotes around it. No explanation."""
 
 SUMMARISE_PROMPT = """You are writing a summary tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
 
-GOAL: Summarise the following content into a punchy, informative tweet in Secret Feeds voice.
+GOAL: Summarise the content into a punchy tweet AND rewrite it in your own words — do not copy the original wording.
 
 STRICT RULES:
-1. Keep ALL key facts, numbers, names, and dates
-2. Professional news agency style — formal, factual, neutral
-3. Report as a neutral observer — never take sides
-4. Attribute quotes and statements clearly to their source
-5. Lead with the most important fact
-6. Keep it under 4000 characters (X Premium account)
-7. Do NOT add hashtags or emojis unless the original has them
-8. Do NOT wrap output in quotes
-9. Pick the 3-5 most important facts if content is very long
-10. Use correct grammar and spelling
+1. Keep ALL key facts, numbers, names, and dates — do not change or lose any
+2. REWRITE completely in your own words — do not copy phrases or sentence structure from the original
+3. Professional news agency style — formal, factual, neutral (AP, Reuters, BBC)
+4. Report as a neutral observer — never take sides
+5. Attribute quotes and statements clearly to their source
+6. Lead with the most important fact
+7. Keep it under 4000 characters (X Premium account)
+8. Do NOT add hashtags or emojis unless the original has them
+9. Do NOT wrap output in quotes — write the tweet text directly
+10. Pick the 3-5 most important facts if content is very long
+11. Use correct grammar and spelling
+12. Never copy more than 3 consecutive words from the original
 
 Content to summarise:
 "{content}"
@@ -126,6 +128,7 @@ STRICT RULES:
 5. Do NOT add hashtags
 6. Do NOT wrap in quotes
 7. Present tense or simple past — keep it punchy
+8. If original starts with "JUST IN:" keep it
 
 Examples:
 - "🇺🇸🇮🇷 US launches new wave of strikes against Iran"
