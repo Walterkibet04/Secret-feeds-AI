@@ -130,7 +130,7 @@ STRICT RULES:
 4. Breaking news style — strip to the core news
 5. Do NOT add hashtags
 6. Do NOT wrap in quotes
-7. Present tense or simple past — keep it punchy
+7. Keep the same tense as the original
 8. REWRITE the wording — do not just swap one word. Change the sentence structure completely
 9. Never use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
 
