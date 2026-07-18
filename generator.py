@@ -89,8 +89,6 @@ STRICT RULES:
 13. Never sound like you are taking a side or speaking on behalf of the source
 14: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
 15. Never include calls to action, engagement prompts, or phrases soliciting replies, likes, or follows.
-16. You must identify its true meaning first and undersand the original tweet so don't write something that is confusing
-
 Original tweet:
 "{tweet}"
 
