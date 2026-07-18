@@ -134,6 +134,7 @@ STRICT RULES:
 7. Present tense or simple past — keep it punchy
 8. Keep the same tense as the original
 9. Never include calls to action, engagement prompts, or phrases soliciting replies, likes, or follows.
+10. Just rearrange the sentence structure and swap words with professional synonyms
 Examples:
 - "🇺🇸🇮🇷 US launches new wave of strikes against Iran"
 - "🇷🇺🇺🇦 Russia fires 47 drones at Kyiv overnight"
