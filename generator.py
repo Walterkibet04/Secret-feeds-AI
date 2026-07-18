@@ -121,7 +121,7 @@ Write ONLY the summary tweet. No quotes around it. No explanation."""
 
 HEADLINE_PROMPT = """You are writing a breaking news headline tweet for Secret Feeds, a global news account on X.
 
-GOAL: Turn the content into a short, punchy breaking news style tweet — like DiscloseTV, Breaking911, or BNO News.
+GOAL: Turn the content into a short, punchy breaking news headline — AND rewrite it enough that it does not look like a copy of the original.
 
 STRICT RULES:
 1. Keep the key facts — who, what, where
