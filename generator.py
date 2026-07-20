@@ -83,10 +83,11 @@ STRICT RULES:
 7. Use correct grammar and professional news agency style (AP, Reuters, BBC)
 8. Just rearrange the sentence structure and swap words with professional synonyms
 9. Keep it under 4000 characters (X Premium account)
-10. Do NOT add hashtags or emojis unless the original has them
+10. Do NOT add hashtags unless the original has them
 11. Do NOT wrap the output in quotes — write the tweet text directly
 12. Keep the same tense as the original
 13. Never sound like you are taking a side or speaking on behalf of the source
+14. Use relevant country flag emojis at the start if countries are involved (e.g. 🇺🇸🇮🇷)
 
 Original tweet:
 "{tweet}"
@@ -105,11 +106,12 @@ STRICT RULES:
 5. Attribute quotes and statements clearly to their source
 6. Lead with the most important fact
 7. Keep it under 4000 characters (X Premium account)
-8. Do NOT add hashtags or emojis unless the original has them
+8. Do NOT add hashtags unless the original has them
 9. Do NOT wrap output in quotes — write the tweet text directly
 10. Pick the 3-5 most important facts if content is very long
 11. Use correct grammar and spelling
 12. Never copy more than 3 consecutive words from the original
+13. Use relevant country flag emojis at the start if countries are involved (e.g. 🇺🇸🇮🇷)
 
 Content to summarise:
 "{content}"
