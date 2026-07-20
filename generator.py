@@ -71,7 +71,7 @@ Professional, factual, clear. Never vague. Never take sides. Short sentences. Ac
 
 REWRITE_PROMPT = """You are helping rewrite a tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
 
-GOAL: Make the tweet look original to X's algorithm without changing what it says.
+GOAL: Make the tweet look original to X's algorithm without changing the meaning.
 
 STRICT RULES:
 1. Keep EVERY fact, number, name, and date exactly the same
@@ -79,15 +79,16 @@ STRICT RULES:
 4. Do NOT change the meaning even slightly
 5. Write as a neutral news reporter — REPORTING what others said or did, not speaking for them
 6. If the original contains a quote or statement from a person/organization, frame it as their statement — attributed to THEM
-7. Use correct grammar and professional news agency style (AP, Reuters, BBC, CNN, Aljazeera)
+7. Use correct grammar and professional news agency style (AP, Reuters, BBC)
 8. Just rearrange the sentence structure and swap words with professional synonyms
 9. Keep it under 4000 characters (X Premium account)
-10. Do NOT add hashtags unless the original has them
+10. Do NOT add hashtags or emojis unless the original has them
 11. Do NOT wrap the output in quotes — write the tweet text directly
 12. Keep the same tense as the original
 13. Never sound like you are taking a side or speaking on behalf of the source
 14: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
 
+Original tweet:
 "{tweet}"
 
 Write ONLY the rewritten tweet. No quotes around it. No explanation."""
@@ -104,14 +105,13 @@ STRICT RULES:
 5. Attribute quotes and statements clearly to their source
 6. Lead with the most important fact
 7. Keep it under 4000 characters (X Premium account)
-8. Do NOT add hashtags unless the original has them
+8. Do NOT add hashtags or emojis unless the original has them
 9. Do NOT wrap output in quotes — write the tweet text directly
 10. Pick the 3-5 most important facts if content is very long
 11. Use correct grammar and spelling
 12. Never copy more than 3 consecutive words from the original
-13. Keep the same tense as the original
-14. Never include calls to action, engagement prompts, or phrases soliciting replies, likes, or follows.
 
+Content to summarise:
 "{content}"
 
 Write ONLY the summary tweet. No quotes around it. No explanation."""
@@ -122,15 +122,16 @@ GOAL: Turn the content into a short, punchy breaking news headline — AND rewri
 
 STRICT RULES:
 1. Keep the key facts — who, what, where
-2. Very short — ideally under 100 characters, maximum 280
+2. Short — ideally under 100 characters, maximum 280
 3. Use relevant country flag emojis at the start if countries are involved (e.g. 🇺🇸🇮🇷)
 4. Breaking news style — strip to the core news
 5. Do NOT add hashtags
 6. Do NOT wrap in quotes
 7. Keep the same tense as the original
-8. REWRITE the wording — do not just swap one word. Change the sentence structure completely
-9. Try not to use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
-
+8. If original starts with "JUST IN:" keep it
+9. REWRITE the wording — do not just swap one word. Change the sentence structure completely
+10. Never use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
+11: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
 
 Examples of good rewriting:
 - Original: "🇮🇷🇺🇸 Iran strikes US military fuel terminal in Kuwait"
