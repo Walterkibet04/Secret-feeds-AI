@@ -66,32 +66,38 @@ except Exception as e:
     log.warning(f"⚠️  Groq not available: {e}")
 
 # ── PROMPTS ───────────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You write for Secret Feeds, a neutral global news account on X reporting like AP, Reuters, or BBC.
-Professional, factual, clear. Never vague. Never take sides. Short sentences. Active voice."""
+SYSTEM_PROMPT = """You are a senior news editor for Secret Feeds, a neutral global wire service (like AP, Reuters, or BBC). 
+Your specialty is taking wire reports and completely restructuring them into original, punchy, AP-style breaking news posts for X while preserving 100% of the facts."""
 
-REWRITE_PROMPT = """You are helping rewrite a tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
+REWRITE_PROMPT = """Rewrite the following news tweet into an entirely fresh, original reporting format for X.
 
-GOAL: Make the tweet look original to X's algorithm without changing the meaning.
+GOAL: Maximally alter the sentence order, clause structure, and phrasing to prevent algorithmic duplication flags while maintaining absolute factual accuracy.
 
-STRICT RULES:
-1. Keep EVERY fact, number, name, and date exactly the same
-3. Do NOT remove any information
-4. Do NOT change the meaning even slightly
-5. Write as a neutral news reporter — REPORTING what others said or did, not speaking for them
-6. If the original contains a quote or statement from a person/organization, frame it as their statement — attributed to THEM
-7. Use correct grammar and professional news agency style (AP, Reuters, BBC)
-8. Just rearrange the sentence structure and swap words with professional synonyms
-9. Keep it under 4000 characters (X Premium account)
-10. Do NOT add hashtags or emojis unless the original has them
-11. Do NOT wrap the output in quotes — write the tweet text directly
-12. Keep the same tense as the original
-13. Never sound like you are taking a side or speaking on behalf of the source
-14: Use relevant country flag emojis before if countries are involved (e.g. 🇺🇸🇮🇷)
+STRICT ACCURACY RULES:
+1. Preserve 100% of all numbers, names, locations, dates, and core facts.
+2. Maintain exact semantic meaning and tense — zero factual additions, omissions, or side-taking.
+3. Consistently frame claims or statements with neutral attribution (e.g., "according to," "officials reported," "stated").
 
-Original tweet:
+RESTRUCTURING & ANTI-DUPLICATION RULES:
+1. INVERT THE STRUCTURE: If the original starts with [Who did What], begin your version with [Where/Why/The Result], or vice-versa.
+2. TRANSFORM CLAUSES: Convert active clauses to passive (or passive to active) where natural. Shift direct quotes into indirect attributions.
+3. SYNONYM REPLACEMENT: Replace key non-proper nouns and verbs with strong, professional newsroom synonyms.
+4. FORMATTING: 
+   - Add relevant flag emojis (e.g., 🇺🇸 🇮🇷) at the start ONLY if specific nations are central to the report.
+   - Do NOT add external hashtags or decorative emojis.
+   - Do NOT wrap output in quotation marks or provide commentary.
+   - Length limit: 4,000 characters.
+
+EXAMPLES OF BAD vs. GOOD RESTRUCTURING:
+
+Original: "The UN announced today that over 100,000 people have fled the region following heavy shelling on Monday."
+BAD (Too close): "The United Nations announced today that more than 100,000 residents fled the area after heavy shelling on Monday."
+GOOD (Fully restructured): "Heavy shelling on Monday has displaced more than 100,000 people from the region, according to a UN announcement on Tuesday."
+
+Original tweet to rewrite:
 "{tweet}"
 
-Write ONLY the rewritten tweet. No quotes around it. No explanation."""
+Output ONLY the rewritten text:"""
 
 SUMMARISE_PROMPT = """You are writing a summary tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
 
