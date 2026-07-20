@@ -83,7 +83,7 @@ RESTRUCTURING & ANTI-DUPLICATION RULES:
 2. TRANSFORM CLAUSES: Convert active clauses to passive (or passive to active) where natural. Shift direct quotes into indirect attributions.
 3. SYNONYM REPLACEMENT: Replace key non-proper nouns and verbs with strong, professional newsroom synonyms.
 4. FORMATTING: 
-   - Add relevant flag emojis (e.g., 🇺🇸 🇮🇷) at the start ONLY if specific nations are central to the report.
+   - Add relevant flag emojis (e.g., 🇺🇸 🇮🇷) at the start for the countries mentioned.
    - Do NOT add external hashtags or decorative emojis.
    - Do NOT wrap output in quotation marks or provide commentary.
    - Length limit: 4,000 characters.
