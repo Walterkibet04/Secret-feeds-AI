@@ -137,7 +137,6 @@ GOAL: Transform the provided news report into a high-impact, punchy breaking new
 STRICT ACCURACY RULES:
 1. Retain core facts: Who, What, Where, and Key Numbers.
 2. Maintain exact semantic meaning and tense. Never add speculations or unverified claims.
-3. If the input text explicitly starts with "JUST IN:", retain "JUST IN:" at the very beginning of your output.
 
 ANTI-DUPLICATION & STRUCTURE RULES:
 1. COMPLETE RESTRUCTURING: Never just swap a single word. Re-order the elements (e.g., shift from [Country A + Action + Country B] to [Location: Action taken by Country A on Country B]).
