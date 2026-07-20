@@ -108,13 +108,14 @@ CORE CONTENT RULES:
 2. Retain ALL exact numbers, dates, proper names, official titles, and specific locations. Never alter or estimate statistical data.
 3. Keep the tone completely neutral, objective, and formal (standard AP/Reuters newsroom style).
 4. Frame all statements, claims, or quotes with clear attribution (e.g., "according to officials," "stated," "reported").
+5. Add relevant flag emojis (e.g., 🇺🇸 🇮🇷) at the start for the countries mentioned.
 
 ANTI-DUPLICATION & CONDENSATION RULES:
 1. NO OVERLAPPING PHRASES: Never use 3 or more consecutive words from the original text (excluding proper nouns, official titles, and exact numbers).
 2. CONDENSE & COMBINE: Merge secondary clauses into single descriptive phrases to reduce total word count while preserving facts.
 3. INVERT STRUCTURE: Start the summary with the major outcome or headline fact, followed by supporting context or source attribution.
 4. SYNONYM SWAPPING: Replace non-proprietary verbs and adjectives with concise news-wire equivalents.
-5. NO EXTRA DECORATION: Do NOT add hashtags, emojis, or quotation marks around the final output. 
+5. NO EXTRA DECORATION: Do NOT add hashtags or quotation marks around the final output. 
 
 EXAMPLES OF EFFECTIVE CONDENSATION:
 
