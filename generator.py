@@ -96,50 +96,60 @@ Write ONLY the rewritten tweet. No quotes around it. No explanation."""
 
 SUMMARISE_PROMPT = """You are writing a summary tweet for Secret Feeds, a neutral global news account on X that reports like AP, Reuters, or BBC.
 
-GOAL: Summarise the content into a punchy tweet AND rewrite it in your own words — do not copy the original wording.
+GOAL: Condense the content into ONE short, punchy tweet — not multiple paragraphs, not multiple sentences if avoidable. One tweet.
 
 STRICT RULES:
-1. Keep ALL key facts, numbers, names, and dates — do not change or lose any
-2. REWRITE completely in your own words — do not copy phrases or sentence structure from the original
-3. Professional news agency style — formal, factual, neutral (AP, Reuters, BBC)
-4. Report as a neutral observer — never take sides
-5. Attribute quotes and statements clearly to their source
-6. Lead with the most important fact
-7. Keep it under 4000 characters (X Premium account)
-8. Do NOT add hashtags unless the original has them
-9. Do NOT wrap output in quotes — write the tweet text directly
-10. Pick the 3-5 most important facts if content is very long
-11. Use correct grammar and spelling
-12. Never copy more than 3 consecutive words from the original
-13. Use relevant country flag emojis at the start if countries are involved (e.g. 🇺🇸🇮🇷)
+1. OUTPUT must be a SINGLE TWEET — maximum 280 characters for the core message (up to 4000 if truly needed but always aim for under 280)
+2. Pick only the 2-3 most important facts — do not include everything
+3. Lead with the biggest fact first
+4. Rewrite completely in your own words — do not copy phrasing from the original
+5. Never copy more than 3 consecutive words from the original
+6. Professional news style — factual, neutral, clear
+7. Attribute statements to their source (e.g. "per NYT", "Pentagon says")
+8. Use relevant country flag emojis at the start if countries are involved
+9. Do NOT add hashtags
+10. Do NOT wrap in quotes
+11. Do NOT write multiple paragraphs — one tweet only
+
+Example of good summarising:
+Original: 3 paragraphs about Pentagon hiding Iranian attacks in Jordan that killed 16 and injured 400+
+Good: "🇺🇸🇮🇷🇯🇴 Pentagon concealed multiple Iranian strikes on US bases in Jordan — 16 troops killed, 400+ wounded since Feb 28, per NYT." ✅
+Bad: 3 reworded paragraphs that repeat all the details ❌
 
 Content to summarise:
 "{content}"
 
-Write ONLY the summary tweet. No quotes around it. No explanation."""
+Write ONLY the single summary tweet. No quotes around it. No explanation. No paragraphs."""
 
 HEADLINE_PROMPT = """You are writing a breaking news headline tweet for Secret Feeds, a global news account on X.
 
-GOAL: Turn the content into a short, punchy breaking news headline — AND rewrite it enough that it does not look like a copy of the original.
+GOAL: Turn the content into a short punchy headline AND rewrite it completely — it must NEVER look like a copy of the original.
 
 STRICT RULES:
-1. Keep the key facts — who, what, where
-2. Very short — ideally under 100 characters, maximum 280
+1. Keep the key facts — who, what, where, numbers
+2. Very short — ideally under 120 characters, maximum 280
 3. Use relevant country flag emojis at the start if countries are involved (e.g. 🇺🇸🇮🇷)
-4. Breaking news style — strip to the core news
-5. Do NOT add hashtags
-6. Do NOT wrap in quotes
-7. Present tense or simple past — keep it punchy
-8. If original starts with "JUST IN:" keep it
-9. REWRITE the wording — do not just swap one word. Change the sentence structure completely
-10. Never use the same verb as the original (e.g. if original says "strikes", use "attacks", "targets", "bombs", "launches assault on" etc.)
-11. Never copy more than 2 consecutive words from the original
+4. Do NOT add hashtags
+5. Do NOT wrap in quotes
+6. Keep nationalities correct — "Iranian" stays "Iranian", never change to "Tehran's" or any substitute
+7. MANDATORY REWRITE — you MUST change the sentence structure completely:
+   - Change the verb (e.g. "strikes" → "targets", "hit" → "struck", "fly past" → "evade", "bypass")
+   - Change the word order
+   - Rephrase — never copy the original sentence as-is
+8. Never copy more than 2 consecutive words from the original
+9. If the original is already a short headline, still restructure it differently
+10. If original starts with "JUST IN:" keep it
 
-Examples of good rewriting:
+Rewriting examples:
+- Original: "Iranian ballistic missiles fly past Patriot interceptors and hit targets in Jordan"
+  Good: "🇮🇷🇯🇴 Iran's ballistic missiles evade Patriot defences, striking targets inside Jordan" ✅
+  Good: "🇮🇷🇯🇴 Patriot missiles fail to intercept Iranian ballistic strikes over Jordan" ✅
+  Bad: "Iranian ballistic missiles fly past Patriot interceptor missiles and hit their targets in Jordan" ❌ (identical)
+  Bad: "Tehran's ballistic missiles fly past Patriot interceptors" ❌ (changed nationality word)
+
 - Original: "🇮🇷🇺🇸 Iran strikes US military fuel terminal in Kuwait"
-- Good: "🇮🇷🇺🇸 Iranian forces target US fuel depot in Kuwait" ✅
-- Good: "🇮🇷🇺🇸 Kuwait: Iran attacks American military fuel site" ✅
-- Bad: "🇮🇷🇺🇸 Iran hits US military fuel terminal in Kuwait" ❌ (too similar)
+  Good: "🇮🇷🇺🇸 Iranian forces target US fuel depot in Kuwait" ✅
+  Bad: "🇮🇷🇺🇸 Iran hits US military fuel terminal in Kuwait" ❌ (only one word changed)
 
 Content:
 "{content}"
