@@ -85,10 +85,8 @@ STRICT RULES:
 4. End with a question if it fits naturally — questions drive replies which boost the algorithm
 5. Write in Secret Feeds voice — sharp, informed, geopolitically aware
 6. Be neutral — do not take sides, but you can highlight significance
-7. No hashtags
 8. Keep total post under 4000 characters (X Premium)
 9. Do NOT wrap anything in quotes except actual direct quotes from people
-10. Use flag emojis if countries are involved
 
 Examples of good output:
 
