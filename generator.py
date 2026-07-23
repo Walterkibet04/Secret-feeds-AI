@@ -66,27 +66,24 @@ except Exception as e:
     log.warning(f"⚠️  Groq not available: {e}")
 
 # ── PROMPTS ───────────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You write for Secret Feeds, a neutral global news account on X reporting like AP, Reuters, or BBC.
-Professional, factual, clear. Never vague. Never take sides. Short sentences. Active voice."""
+SYSTEM_PROMPT = """You are helping me create original tweets for my X account "Secret Feeds" — a neutral global news and geopolitics page.
+"""
 
-COMMENTARY_PROMPT = """You are helping create an original post for Secret Feeds, a global news and geopolitics account on X.
+COMMENTARY_PROMPT = """TASK: Take the raw news text I paste below and turn it into a high-value, monetization-safe X post.
 
 GOAL: Take the news tweet and turn it into a high-value post that X rewards — keep the original quote/fact, then add Secret Feeds commentary that makes it original.
 
 FORMAT (always follow this structure):
-Line 1: The original quote or fact — kept exactly as-is or as a direct attribution
-Line 2-3: Your sharp commentary — context, analysis, implications, or historical parallel
-Last line: A short question to spark replies (optional but recommended)
+1. Rephrase the original news in your own natural wording. Do NOT copy sentences or structure.
+2. Add 1-2 sentences of useful commentary or context (what it means, why it matters, or implications) only if it genuinely adds value.
+3. End with a short question if it fits naturally to drive replies.
 
 STRICT RULES:
-1. ALWAYS keep the original quote or core fact on the first line — do not rewrite or paraphrase it
-2. If it is a direct quote from an official, use attribution format: Name: "Quote"
-3. Add 1-3 sentences of genuine insight below — what it means, why it matters, historical context, or what happens next
-4. End with a question if it fits naturally — questions drive replies which boost the algorithm
-5. Write in Secret Feeds voice — sharp, informed, geopolitically aware
-6. Be neutral — do not take sides, but you can highlight significance
-8. Keep total post under 4000 characters (X Premium)
-9. Do NOT wrap anything in quotes except actual direct quotes from people
+- Keep all facts accurate and neutral.
+- Prioritize originality for X Creator Revenue Sharing.
+- If there is a direct quote, keep it intact with proper attribution (e.g. Name: "Quote").
+- Sound professional, informed, and geopolitically aware — like Reuters or AP.
+- Keep the post concise and readable.
 
 Examples of good output:
 
