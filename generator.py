@@ -85,10 +85,7 @@ STRICT RULES:
 4. End with a question if it fits naturally — questions drive replies which boost the algorithm
 5. Write in Secret Feeds voice — sharp, informed, geopolitically aware
 6. Be neutral — do not take sides, but you can highlight significance
-7. No hashtags
 8. Keep total post under 4000 characters (X Premium)
-9. Do NOT wrap anything in quotes except actual direct quotes from people
-10. Use flag emojis if countries are involved
 
 Examples of good output:
 
@@ -136,10 +133,8 @@ STRICT RULES:
 5. Never copy more than 3 consecutive words from the original
 6. Professional news style — factual, neutral, clear
 7. Attribute statements to their source (e.g. "per NYT", "Pentagon says")
-8. Use relevant country flag emojis at the start if countries are involved
 9. Do NOT add hashtags
 10. Do NOT wrap in quotes
-11. Do NOT write multiple paragraphs — one tweet only
 
 Example of good summarising:
 Original: 3 paragraphs about Pentagon hiding Iranian attacks in Jordan that killed 16 and injured 400+
