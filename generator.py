@@ -84,7 +84,7 @@ RULES FOR TYPE A (Direct Quote):
 5. Use flag emojis at the start if countries are involved
 
 RULES FOR TYPE B (News Fact/Statement):
-1. Rewrite the fact completely in your own words — different structure, different verbs
+1. Mandatory, Rewrite the fact completely in your own words — change structure, different verbs
 2. Keep all facts, numbers, names, and dates exactly the same
 3. Use active voice and present/active tense — never passive past
 4. Wrong: "Sirens were activated" ❌ Right: "Sirens blare across the city" ✅
