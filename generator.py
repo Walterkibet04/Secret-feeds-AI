@@ -198,7 +198,7 @@ GOAL: Turn the content into a short punchy headline AND rewrite it completely �
 
 STRICT RULES:
 1. Keep the key facts — who, what, where
-2. Very short — ideally under 100 characters, maximum 280
+2. Keep it  short
 3. Use relevant country flag emojis at the start if countries are involved
 4. Do NOT add hashtags
 5. Do NOT wrap in quotes
@@ -206,7 +206,6 @@ STRICT RULES:
 7. MANDATORY REWRITE — change structure, verb, word order completely
 8. Never copy more than 2 consecutive words from the original
 9. Never use the same verb as the original
-10. If original starts with "JUST IN:" keep it
 
 Examples:
 - Original: "Iranian ballistic missiles fly past Patriot interceptors and hit targets in Jordan"
