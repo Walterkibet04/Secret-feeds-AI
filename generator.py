@@ -239,7 +239,7 @@ def call_ai(prompt: str) -> str:
         label = entry["label"]
         try:
             response = entry["client"].chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 max_tokens=1500,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
