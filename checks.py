@@ -70,6 +70,14 @@ def clean_text(text: str) -> str:
     return text
 
 
+def unwrap_quotes(text: str) -> str:
+    """Remove quotation marks the AI wrapped around the whole post (the prompt says not to)."""
+    t = text.strip()
+    if len(t) > 2 and t[0] in "\"“" and t[-1] in "\"”" and not any(c in t[1:-1] for c in "\"“”"):
+        return t[1:-1].strip()
+    return t
+
+
 def _bare_titles(text: str) -> list[str]:
     """Titles used without a country in front, e.g. "revokes PM Peter ..."."""
     found = []
@@ -211,15 +219,15 @@ def _tokens(text: str) -> list[str]:
 def word_overlap(original: str, rewrite: str) -> dict:
     """How close the rewrite is to the pasted original.
 
-    Exact quotes are left out of the comparison, because quotes are kept word for word
-    on purpose.
+    Every word counts, including words inside quotation marks, because X's duplicate
+    check doesn't skip quotes either.
     """
-    quotes = [q.strip() for q in _QUOTED.findall(original)]
-    strip = lambda t: _QUOTED.sub(" ", t)
-    a, b = _tokens(strip(original)), _tokens(strip(rewrite))
+    a, b = _tokens(original), _tokens(rewrite)
     sa, sb = set(a), set(b)
     jaccard = len(sa & sb) / len(sa | sb) if sa | sb else 0.0
 
+    # For the "words in a row" check, leave out exact quotes: those must stay word for word.
+    a, b = _tokens(_QUOTED.sub(" ", original)), _tokens(_QUOTED.sub(" ", rewrite))
     # Longest run of consecutive words that appears in both.
     best, end = 0, 0
     prev = [0] * (len(b) + 1)
@@ -235,15 +243,21 @@ def word_overlap(original: str, rewrite: str) -> dict:
         "percent": round(jaccard * 100),
         "longest_run": best,
         "longest_phrase": " ".join(a[end - best:end]) if best else "",
-        "quotes_excluded": bool(quotes),
+        "has_quote": bool(_QUOTED.search(original)),
     }
+
+
+def too_similar(o: dict) -> bool:
+    return o["percent"] >= OVERLAP_WARN * 100 or o["longest_run"] >= COPIED_RUN_WARN
 
 
 def overlap_warnings(o: dict) -> list[str]:
     out = []
     if o["percent"] >= OVERLAP_WARN * 100:
-        out.append(f"{o['percent']}% of words are shared with the original. X's duplicate check compares words, "
-                   "not word order: change more words, or regenerate.")
+        tip = ("The quote has to stay word for word, so add a line of your own around it."
+               if o.get("has_quote") else "Change more words, or regenerate.")
+        out.append(f"{o['percent']}% of the words match the tweet you pasted. X's duplicate check compares words, "
+                   f"not word order. {tip}")
     if o["longest_run"] >= COPIED_RUN_WARN:
         out.append(f"Copies {o['longest_run']} words in a row from the original: \"{o['longest_phrase']}\".")
     return out

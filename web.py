@@ -5,9 +5,12 @@ from flask import Flask, request, jsonify, render_template_string, send_from_dir
 from dotenv import load_dotenv
 from generator import (
     call_ai, FORMATS, pick_format, build_rewrite_prompt,
-    build_thread_prompt, build_summary_prompt, build_headline_prompt,
+    build_thread_prompt, build_summary_prompt, build_headline_prompt, retry_prompt,
 )
-from checks import check_post, clean_text, clean_pasted, word_overlap, overlap_warnings
+from checks import (
+    check_post, clean_text, clean_pasted, unwrap_quotes,
+    word_overlap, overlap_warnings, too_similar,
+)
 import world_facts
 
 load_dotenv()
@@ -195,6 +198,7 @@ HTML = """<!DOCTYPE html>
           <button class="copy-btn" onclick="copyText('thread-post1', this)">Copy</button>
         </div>
         <div class="overlap" id="thread-overlap"></div>
+        <div class="note" id="thread-note" style="display:none"></div>
         <div class="warnings" id="thread-warnings1"></div>
       </div>
       <div class="thread-connector">↓ reply to your own post</div>
@@ -244,6 +248,7 @@ HTML = """<!DOCTYPE html>
         <button class="copy-btn" onclick="copyText('summarise-output', this)">Copy</button>
       </div>
       <div class="overlap" id="summarise-overlap"></div>
+      <div class="note" id="summarise-note" style="display:none"></div>
       <div class="warnings" id="summarise-warnings"></div>
     </div>
   </div>
@@ -271,6 +276,7 @@ HTML = """<!DOCTYPE html>
         <button class="copy-btn" onclick="copyText('headline-output', this)">Copy</button>
       </div>
       <div class="overlap" id="headline-overlap"></div>
+      <div class="note" id="headline-note" style="display:none"></div>
       <div class="warnings" id="headline-warnings"></div>
     </div>
   </div>
@@ -331,10 +337,20 @@ function showOverlap(id, o) {
   const el = document.getElementById(id);
   if (!o) { el.textContent = ''; return; }
   const high = o.percent >= 60 || o.longest_run >= 6;
+  const words = o.percent + '% of the words match the tweet you pasted';
+  const quotes = (high && o.has_quote) ? ' (the quote has to stay, so add a line of your own)' : '';
   el.className = 'overlap' + (high ? ' high' : '');
-  el.textContent = (high ? '⚠ ' : '✓ ') + o.percent + '% of words shared with the original'
-    + (o.quotes_excluded ? ' (exact quotes not counted)' : '')
-    + (high ? ': too close to the original, change more words' : ' (a straight copy is close to 100%)');
+  if (high) el.textContent = '⚠ Too similar to the original: ' + words + quotes + '. Change more words or regenerate.';
+  else if (o.percent < 40) el.textContent = '✓ Low duplicate risk: only ' + words + quotes + '.';
+  else el.textContent = '✓ OK: ' + words + quotes + '. Lower is safer.';
+  el.title = 'Duplicate check. X flags posts that use the same words as other posts, in any order. A straight copy scores close to 100%.';
+}
+
+function showNote(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
 }
 
 function showWarnings(id, warnings) {
@@ -373,6 +389,7 @@ async function doRewrite() {
       document.getElementById('thread-chars1').textContent = data.post1.length + ' / 280 chars';
       document.getElementById('thread-chars2').textContent = data.post2.length + ' chars';
       showOverlap('thread-overlap', data.overlap);
+      showNote('thread-note', data.note);
       showWarnings('thread-warnings1', data.warnings1);
       showWarnings('thread-warnings2', data.warnings2);
       document.getElementById('thread-result').style.display = 'block';
@@ -414,6 +431,7 @@ async function callEndpoint(endpoint, payload, btnId, spinnerId, errorId, result
     document.getElementById(outputId).textContent = data.result;
     document.getElementById(charsId).textContent = data.result.length + ' / ' + limit + ' chars';
     showOverlap(warningsId.replace('-warnings', '-overlap'), data.overlap);
+    showNote(warningsId.replace('-warnings', '-note'), data.note);
     showWarnings(warningsId, data.warnings);
     document.getElementById(resultId).style.display = 'block';
   } catch(e) {
@@ -449,6 +467,33 @@ document.addEventListener('keydown', e => {
 </script>
 </body>
 </html>"""
+
+
+RETRIED_NOTE = "The first draft copied too much of the tweet you pasted, so it was rewritten again."
+STILL_CLOSE_NOTE = "Tried twice and it's still close to the tweet you pasted. Edit it by hand or press the button again."
+
+
+def _tidy(text: str) -> str:
+    return unwrap_quotes(clean_text(text))
+
+
+def _generate(prompt: str, source: str, thread: bool = False) -> tuple[str, str]:
+    """Call the AI and tidy the result. If it's too close to the pasted tweet
+    (X would see a duplicate), ask once more with the first draft attached."""
+    first_post = lambda r: r.split("---THREAD---", 1)[0] if thread else r
+    result = _tidy(call_ai(prompt))
+    o = word_overlap(source, first_post(result))
+    if not too_similar(o):
+        return result, ""
+    try:
+        second = _tidy(call_ai(retry_prompt(prompt, first_post(result), o["percent"])))
+    except Exception as e:
+        log.warning(f"Retry after a too-similar draft failed: {e}")
+        return result, STILL_CLOSE_NOTE
+    o2 = word_overlap(source, first_post(second))
+    if o2["percent"] < o["percent"]:
+        return second, (STILL_CLOSE_NOTE if too_similar(o2) else RETRIED_NOTE)
+    return result, STILL_CLOSE_NOTE
 
 
 def _with_overlap(payload: dict, original: str, text: str, key: str = "warnings") -> dict:
@@ -494,16 +539,17 @@ def rewrite_endpoint():
         return jsonify({"error": "Text too long"}), 400
     try:
         if as_thread:
-            result = clean_text(call_ai(build_thread_prompt(tweet)))
+            result, retried = _generate(build_thread_prompt(tweet), tweet, thread=True)
             parts = result.split("---THREAD---", 1)
-            post1 = parts[0].strip()
-            post2 = parts[1].strip() if len(parts) > 1 else ""
+            post1 = _tidy(parts[0])
+            post2 = _tidy(parts[1]) if len(parts) > 1 else ""
             if post2:
                 return jsonify(_with_overlap({
                     "result": result,
                     "post1": post1,
                     "post2": post2,
                     "is_thread": True,
+                    "note": retried,
                     "warnings1": check_post(post1, limit=280, standalone=True),
                     "warnings2": check_post(post2),
                 }, tweet, post1, key="warnings1"))
@@ -512,16 +558,18 @@ def rewrite_endpoint():
             return jsonify(_with_overlap({
                 "result": post1,
                 "is_thread": False,
-                "note": "No follow-up: the source didn't have enough for a second post, so this is a single post.",
+                "note": "No follow-up: the source didn't have enough for a second post, so this is a single post."
+                        + (" " + retried if retried else ""),
                 "warnings": check_post(post1, limit=280, standalone=True),
             }, tweet, post1))
         fmt = pick_format(requested_format)
-        result = clean_text(call_ai(build_rewrite_prompt(tweet, fmt)))
+        result, retried = _generate(build_rewrite_prompt(tweet, fmt), tweet)
         return jsonify(_with_overlap({
             "result": result,
             "is_thread": False,
             "format": fmt,
             "format_label": FORMATS[fmt]["label"],
+            "note": retried,
             "warnings": check_post(result),
         }, tweet, result))
     except Exception as e:
@@ -538,8 +586,9 @@ def summarise_endpoint():
     if len(content) > 15000:
         return jsonify({"error": "Content too long — paste a shorter section"}), 400
     try:
-        result = clean_text(call_ai(build_summary_prompt(content)))
-        return jsonify(_with_overlap({"result": result, "warnings": check_post(result, limit=280)}, content, result))
+        result, retried = _generate(build_summary_prompt(content), content)
+        return jsonify(_with_overlap({"result": result, "note": retried,
+                                      "warnings": check_post(result, limit=280)}, content, result))
     except Exception as e:
         log.error(f"Summarise error: {e}")
         return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
@@ -554,8 +603,9 @@ def headline_endpoint():
     if len(content) > 10000:
         return jsonify({"error": "Content too long"}), 400
     try:
-        result = clean_text(call_ai(build_headline_prompt(content)))
-        return jsonify(_with_overlap({"result": result, "warnings": check_post(result, limit=280)}, content, result))
+        result, retried = _generate(build_headline_prompt(content), content)
+        return jsonify(_with_overlap({"result": result, "note": retried,
+                                      "warnings": check_post(result, limit=280)}, content, result))
     except Exception as e:
         log.error(f"Headline error: {e}")
         return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500

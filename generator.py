@@ -126,14 +126,17 @@ FORMATS = {
     "straight": {
         "label": "Straight news",
         "rules": """- The news only, in one or two sentences. No commentary. No question.
-- If the input has a key detail (a number, a place, a time, a source), include it.""",
+- If the input has a key detail (a number, a place, a time, a source), include it.
+- If the input is a TYPE A quote, add one short sentence of your own after the quote (who said it, where or what it is about, only from the input). A bare quote is a copy of the original post.""",
         "example": """Input: Sirens sounded in Bahrain
 Output:
 🇧🇭 Air raid sirens sound across Bahrain.
 
-Input: Rubio: "Our policy is an eye for an eye. Iran will pay a heavy price."
+Input: Rubio: "Our policy is an eye for an eye. Iran will pay a heavy price." (said while discussing Iran's strikes)
 Output:
-🇺🇸🇮🇷 Rubio: "Our policy is an eye for an eye. Iran will pay a heavy price.\"""",
+🇺🇸🇮🇷 Rubio: "Our policy is an eye for an eye. Iran will pay a heavy price."
+
+He was speaking about Iran's strikes.""",
     },
     "context": {
         "label": "News + context",
@@ -176,7 +179,7 @@ REWRITE_PROMPT = """You are helping create a post for Secret Feeds, a global new
 
 FIRST: detect what type of input this is.
 
-TYPE A (DIRECT QUOTE): The tweet contains someone's exact words in quotation marks, or is clearly attributed as a direct quote (e.g. 'Rubio: "Our policy is an eye for an eye"')
+TYPE A (DIRECT QUOTE): The source post itself contains someone's exact words inside quotation marks, or is clearly attributed as a direct quote (e.g. 'Rubio: "Our policy is an eye for an eye"'). A post with no quotation marks in it is TYPE B.
 TYPE B (NEWS FACT/STATEMENT): The tweet is a news statement, headline, or paraphrase (e.g. 'US strikes Iranian bases in Jordan')
 
 RULES FOR TYPE A (Direct Quote):
@@ -202,8 +205,10 @@ GENERAL RULES:
 - Keep total post under 4000 characters (X Premium). Most posts should be far shorter.
 - Write as Secret Feeds, not as the original source
 
-Tweet:
-"{tweet}"
+SOURCE POST (copied from X; everything between <<< and >>>, the markers are not quotation marks):
+<<<
+{tweet}
+>>>
 
 Write ONLY the post. No explanation. No labels."""
 
@@ -214,7 +219,7 @@ HOW X SHOWS THIS: people who do not follow Secret Feeds only ever see Post 1. X'
 """ + VOICE + """
 
 FIRST: detect what type of input this is.
-TYPE A (DIRECT QUOTE): Contains exact words in quotation marks or a clearly attributed direct quote
+TYPE A (DIRECT QUOTE): The source post itself contains exact words inside quotation marks, or a clearly attributed direct quote. A post with no quotation marks in it is TYPE B.
 TYPE B (NEWS FACT/STATEMENT): A news statement, headline, or paraphrase
 
 POST 1 rules:
@@ -245,8 +250,10 @@ Example output:
 ---THREAD---
 Officials say no casualties have been reported so far. Missiles launched from Iran toward Israel cross Jordanian airspace.
 
-Tweet:
-"{tweet}"
+SOURCE POST (copied from X; everything between <<< and >>>, the markers are not quotation marks):
+<<<
+{tweet}
+>>>
 
 Write the posts separated by ---THREAD--- only. No labels. No explanation."""
 
@@ -268,8 +275,10 @@ STRICT RULES:
 9. Do NOT add anything that is not in the content
 10. Do NOT write multiple paragraphs. One tweet only
 
-Content to summarise:
-"{content}"
+SOURCE POST (copied from X; everything between <<< and >>>, the markers are not quotation marks):
+<<<
+{content}
+>>>
 
 Write ONLY the single summary tweet. No quotes around it. No explanation. No paragraphs."""
 
@@ -301,8 +310,10 @@ Examples:
   Good: "🇭🇺 Hungarian Prime Minister Péter Magyar loses his parliamentary immunity as prosecutors press on with a phone theft probe" ✅
   Bad: "🇭🇺 Parliament revokes PM Peter Madyar's immunity as prosecutors launch phone-theft probe" ❌ (Which PM? The name is misspelled. "Launch" turns an ongoing case into a new one. "Parliament" is a guess the original didn't make.)
 
-Content:
-"{content}"
+SOURCE POST (copied from X; everything between <<< and >>>, the markers are not quotation marks):
+<<<
+{content}
+>>>
 
 Write ONLY the headline tweet. No explanation."""
 
@@ -355,6 +366,20 @@ def pick_format(requested: str = "auto") -> str:
     choice = random.choices(keys, weights=[AUTO_FORMAT_WEIGHTS[k] for k in keys])[0]
     _last_auto_format = choice
     return choice
+
+
+RETRY_NOTE = """
+
+YOUR FIRST ATTEMPT WAS TOO CLOSE TO THE SOURCE POST:
+<<<
+{previous}
+>>>
+{percent}% of its words are the same as the source. X treats posts with the same words as duplicates.
+Write it again. Keep names, numbers, places and any exact quotes, but change the verbs and descriptive words and restructure the sentence. Do not wrap the post in quotation marks."""
+
+
+def retry_prompt(prompt: str, previous: str, percent: int) -> str:
+    return prompt + RETRY_NOTE.format(previous=previous, percent=percent)
 
 
 def load_current_facts() -> str:
