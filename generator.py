@@ -114,10 +114,16 @@ VOICE (how Secret Feeds sounds):
 - Neutral. No sides, no loaded adjectives, no predictions stated as fact.
 - No hashtags. Do not wrap the post in quotes. At most two flag emojis, at the very start, only if countries are directly involved. No other emojis.
 
+WRITE LIKE A HUMAN EDITOR, NOT AN AI:
+- Type it the way a busy news editor would: straight to the fact, plain verbs (says, hits, kills, meets, signs, bans, wins, quits), no drama words.
+- Vary it. Some posts are one short line. Some start with the place or the number. Sentence lengths differ. Never follow a template.
+- Stop when the facts stop. No closing line about what it all means.
+
 AVOID (these make a post read as machine-written, and people skip or mute it):
-- Em dashes. Use a full stop or a comma instead.
+- Em dashes. Use a full stop or a comma instead. No semicolons.
 - Stock phrases: "This is no longer", "sends a clear message", "a stark reminder", "raises questions", "It remains to be seen", "The question is whether", "In a significant move", "marks a turning point", "game-changer", "Here's why", "Let that sink in", "Make no mistake", "What happens next?", "Thoughts?"
-- Set-piece structures: "It's not X, it's Y", "X isn't just Y", three adjectives in a row, one-word dramatic sentences.
+- AI words: "underscores", "highlights", "signals" (meaning "shows"), "sparking", "fueling", "in a bid to", "a testament to", "landscape", "pivotal", "delve", "notably", "sending shockwaves", "high-stakes", "unprecedented", "escalating tensions", "amid", "this comes as", "it's worth noting", "meanwhile" (unless the source post uses the word itself).
+- Set-piece structures: "It's not X, it's Y", "X isn't just Y", three adjectives in a row, one-word dramatic sentences, "X: Y" colon headlines.
 - A final sentence that repeats the news in different words."""
 
 # The rewrite prompt comes in three formats. "auto" in the web app rotates between them,
@@ -282,6 +288,50 @@ SOURCE POST (copied from X; everything between <<< and >>>, the markers are not 
 
 Write ONLY the single summary tweet. No quotes around it. No explanation. No paragraphs."""
 
+# Quote posts: your short take goes on top of the original post, which X shows underneath.
+# Quote posts count as your own original posts, so they can reach non-followers, while
+# reposts and replies can't (home-mixer/filters/oon_retweet_reply_filter.rs).
+QUOTE_ANGLES = {
+    "context": {
+        "label": "Context",
+        "rules": """- Add one fact of background that explains why this matters: geography, what a place, base, group or treaty is, or who a person is (from the lists above).
+- Only long-established background or facts in the source. Never invent recent events or numbers.""",
+        "example": """Source: Iran strikes US military fuel terminal in Kuwait
+Quote post: Kuwait hosts Camp Arifjan, one of the largest US Army bases in the Gulf.""",
+    },
+    "question": {
+        "label": "Question",
+        "rules": """- Ask one specific question about this story that people who disagree could both answer.
+- Never generic ("Thoughts?", "What do you think?"), never leading, never yes/no bait.""",
+        "example": """Source: Hungarian Prime Minister Péter Magyar loses his parliamentary immunity in a phone theft case
+Quote post: Will prosecutors actually bring charges against a sitting prime minister?""",
+    },
+}
+AUTO_ANGLE_WEIGHTS = {"context": 0.6, "question": 0.4}
+
+QUOTE_PROMPT = """You are writing a quote post for Secret Feeds, a global news and geopolitics account on X.
+X shows the source post directly under your text, so readers see both.
+
+""" + VOICE + """
+
+YOUR JOB: add something the source post doesn't already say, in one or two short sentences. Under 200 characters is best.
+- Never repeat or summarise the source post. Readers can see it right below.
+- Don't start with "This", "Here's", "BREAKING" or by restating the headline.
+- Flags are optional here. At most one.
+
+ANGLE FOR THIS POST: {angle_label}
+{angle_rules}
+
+Example:
+{angle_example}
+
+SOURCE POST (copied from X; everything between <<< and >>>, the markers are not quotation marks):
+<<<
+{tweet}
+>>>
+
+Write ONLY the quote post text. No labels. No explanation."""
+
 HEADLINE_PROMPT = """You are writing a breaking news headline tweet for Secret Feeds, a global news account on X.
 
 GOAL: Turn the content into a short punchy headline AND rewrite it completely. Never copy the original wording.
@@ -419,6 +469,26 @@ def build_thread_prompt(tweet: str) -> str:
 
 def build_summary_prompt(content: str) -> str:
     return _fill(SUMMARISE_PROMPT, content, content=content)
+
+_last_auto_angle = None
+
+
+def pick_angle(requested: str = "auto") -> str:
+    """Like pick_format: "auto" picks a weighted random angle, never twice in a row."""
+    global _last_auto_angle
+    if requested in QUOTE_ANGLES:
+        return requested
+    keys = [k for k in AUTO_ANGLE_WEIGHTS if k != _last_auto_angle]
+    choice = random.choices(keys, weights=[AUTO_ANGLE_WEIGHTS[k] for k in keys])[0]
+    _last_auto_angle = choice
+    return choice
+
+
+def build_quote_prompt(tweet: str, angle: str) -> str:
+    a = QUOTE_ANGLES[angle]
+    return _fill(QUOTE_PROMPT, tweet, tweet=tweet, angle_label=a["label"],
+                 angle_rules=a["rules"], angle_example=a["example"])
+
 
 def build_headline_prompt(content: str) -> str:
     return _fill(HEADLINE_PROMPT, content, content=content)

@@ -24,6 +24,13 @@ STOCK_PHRASES = [
     "what happens next?",
 ]
 
+# Words AI models lean on. Real editors use some of them, so this is a nudge, not a rule.
+AI_WORDS = [
+    "underscores", "underscoring", "sparking", "fueling", "fuelling", "in a bid to", "a testament to",
+    "landscape", "pivotal", "delve", "delves", "notably", "sending shockwaves", "high-stakes",
+    "this comes as", "it's worth noting", "it is worth noting", "escalating tensions",
+]
+
 GENERIC_QUESTIONS = [
     "thoughts?",
     "agree?",
@@ -159,6 +166,13 @@ def check_post(text: str, limit: int | None = None, standalone: bool = False) ->
     found = [p for p in STOCK_PHRASES if p in lower]
     if found:
         warnings.append("Stock phrase: " + ", ".join(f'"{p}"' for p in found) + ". Cut or say it plainly.")
+
+    ai_words = [w for w in AI_WORDS if re.search(r"(?<!\w)" + re.escape(w) + r"(?!\w)", lower)]
+    if ai_words:
+        warnings.append("Sounds AI-written: " + ", ".join(f'"{w}"' for w in ai_words) + ". Use a plain word instead.")
+
+    if ";" in text:
+        warnings.append("Has a semicolon. Split it into two sentences. News editors rarely use them on X.")
 
     if _NOT_X_BUT_Y.search(text):
         warnings.append('"It\'s not X, it\'s Y" structure. A common AI pattern; state the point directly.')

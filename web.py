@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from generator import (
     call_ai, FORMATS, pick_format, build_rewrite_prompt,
     build_thread_prompt, build_summary_prompt, build_headline_prompt, retry_prompt,
+    QUOTE_ANGLES, pick_angle, build_quote_prompt,
 )
 from checks import (
     check_post, clean_text, clean_pasted, unwrap_quotes,
@@ -26,7 +27,7 @@ HTML = """<!DOCTYPE html>
 <title>Secret Feeds — Tools</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700;800&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     /* Light theme taken from the Secret Feeds logo */
@@ -120,12 +121,51 @@ HTML = """<!DOCTYPE html>
   .overlap { font-size: 0.74rem; margin-top: 8px; color: var(--green); font-weight: 500; }
   .overlap.high { color: var(--warn-text); }
 
+  /* Result actions */
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .posted-btn.posted { color: var(--green); border-color: var(--green); background: #F0FAF3; }
+
+  /* Pacing bar and posting log */
+  .pace-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 20px; font-size: 0.78rem; color: var(--muted); }
+  .pace-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .pace b { color: var(--text); }
+  .pace.warn, .pace.warn b { color: var(--warn-text); }
+  .pace.bad, .pace.bad b { color: var(--err-text); font-weight: 600; }
+  .pace-msg { margin-top: 6px; color: var(--warn-text); line-height: 1.5; }
+  .sep { color: var(--border-strong); }
+  .link-btn { background: none; border: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0 2px; }
+  .link-btn:hover { text-decoration: underline; }
+  .log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin: -12px 0 20px; }
+  .log-item { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+  .log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log-kind { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); min-width: 38px; }
+  .log-text { flex: 1; color: var(--text); overflow-wrap: anywhere; }
+  .log-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; }
+
+  /* Bookmarklets */
+  .bm-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .bm { display: inline-block; padding: 7px 14px; border-radius: 999px; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.78rem; text-decoration: none; cursor: grab; }
+
+  /* Image card window */
+  body.modal-open { overflow: hidden; }
+  .modal { position: fixed; inset: 0; background: rgba(40,20,10,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .modal[hidden] { display: none; }
+  .modal-box { background: var(--surface); border-radius: 16px; padding: 18px; width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto; box-shadow: 0 20px 60px rgba(60,20,0,0.25); }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .icon-btn { background: none; border: 1px solid var(--border); border-radius: 999px; width: 32px; height: 32px; cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+  #card-canvas { max-width: 100%; max-height: 58vh; width: auto; height: auto; display: block; margin: 12px auto; border-radius: 10px; border: 1px solid var(--border); }
+  .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .modal-actions .btn { width: auto; flex: 1; margin-top: 0; padding: 10px 14px; font-size: 0.8rem; }
+  .btn.secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--brand); box-shadow: none; }
+
   /* Phones: logo and status on one row, tabs on the next */
   @media (max-width: 600px) {
     header { flex-wrap: wrap; padding: 8px 16px; }
     .logo { height: 48px; }
     nav { order: 3; width: 100%; }
-    .nav-btn { flex: 1; padding: 7px 8px; }
+    nav { gap: 4px; }
+    .nav-btn { flex: 1; padding: 7px 2px; font-size: 0.74rem; }
+    .actions .copy-btn { padding: 6px 10px; }
     main { padding: 24px 16px 40px; }
   }
 </style>
@@ -135,13 +175,17 @@ HTML = """<!DOCTYPE html>
   <img class="logo" src="/logo.png" alt="Secret Feeds" width="85" height="60">
   <nav>
     <button class="nav-btn active" id="nav-rewrite" onclick="switchTab('rewrite')">Rewrite</button>
-    <button class="nav-btn" id="nav-summarise" onclick="switchTab('summarise')">Summarise</button>
+    <button class="nav-btn" id="nav-quote" onclick="switchTab('quote')">Quote</button>
     <button class="nav-btn" id="nav-headline" onclick="switchTab('headline')">Headline</button>
+    <button class="nav-btn" id="nav-summarise" onclick="switchTab('summarise')">Summarise</button>
   </nav>
   <span><span class="dot"></span><span class="status">Live</span></span>
 </header>
 
 <main>
+  <div class="pace-bar" id="pace-bar"></div>
+  <div class="log-panel" id="log-panel" hidden><div id="log-list"></div></div>
+
   <!-- REWRITE TAB -->
   <div class="tab active" id="tab-rewrite">
     <div class="page-title">Rewrite</div>
@@ -181,7 +225,11 @@ HTML = """<!DOCTYPE html>
       <div class="result-text" id="rewrite-output"></div>
       <div class="result-meta">
         <span class="result-chars" id="rewrite-chars"></span>
-        <button class="copy-btn" onclick="copyText('rewrite-output', this)">Copy</button>
+        <div class="actions">
+          <button class="copy-btn" onclick="copyText('rewrite-output', this)">Copy</button>
+          <button class="copy-btn" onclick="openCard('rewrite-output')">Image</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('rewrite-output', 'post', this)">Mark as posted</button>
+        </div>
       </div>
       <div class="note" id="rewrite-note" style="display:none"></div>
       <div class="overlap" id="rewrite-overlap"></div>
@@ -195,7 +243,11 @@ HTML = """<!DOCTYPE html>
         <div class="thread-post-text" id="thread-post1"></div>
         <div class="result-meta">
           <span class="result-chars" id="thread-chars1"></span>
+          <div class="actions">
           <button class="copy-btn" onclick="copyText('thread-post1', this)">Copy</button>
+          <button class="copy-btn" onclick="openCard('thread-post1')">Image</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('thread-post1', 'post', this)">Mark as posted</button>
+        </div>
         </div>
         <div class="overlap" id="thread-overlap"></div>
         <div class="note" id="thread-note" style="display:none"></div>
@@ -207,7 +259,10 @@ HTML = """<!DOCTYPE html>
         <div class="thread-post-text" id="thread-post2"></div>
         <div class="result-meta">
           <span class="result-chars" id="thread-chars2"></span>
+          <div class="actions">
           <button class="copy-btn" onclick="copyText('thread-post2', this)">Copy</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('thread-post2', 'reply', this)">Mark as posted</button>
+        </div>
         </div>
         <div class="warnings" id="thread-warnings2"></div>
       </div>
@@ -245,11 +300,53 @@ HTML = """<!DOCTYPE html>
       <div class="result-text" id="summarise-output"></div>
       <div class="result-meta">
         <span class="result-chars" id="summarise-chars"></span>
-        <button class="copy-btn" onclick="copyText('summarise-output', this)">Copy</button>
+        <div class="actions">
+          <button class="copy-btn" onclick="copyText('summarise-output', this)">Copy</button>
+          <button class="copy-btn" onclick="openCard('summarise-output')">Image</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('summarise-output', 'post', this)">Mark as posted</button>
+        </div>
       </div>
       <div class="overlap" id="summarise-overlap"></div>
       <div class="note" id="summarise-note" style="display:none"></div>
       <div class="warnings" id="summarise-warnings"></div>
+    </div>
+  </div>
+
+  <!-- QUOTE TAB -->
+  <div class="tab" id="tab-quote">
+    <div class="page-title">Quote</div>
+    <p class="page-sub">Paste a post you want to quote. Get a short take of your own to post on top of it.</p>
+    <div class="tip">
+      <strong>Why quote:</strong> a quote post counts as your own post, so X can show it to people who don't follow you. Reposts and replies only reach your followers. Your text is new, so there's no duplicate risk, and the original's author gets credit.
+    </div>
+    <div class="card">
+      <label>Post to Quote</label>
+      <textarea id="quote-input" placeholder="Paste the post you'll quote..." oninput="countChars('quote-input','quote-count',5000)"></textarea>
+      <div class="char-count" id="quote-count">0 / 5000</div>
+      <div class="fmt-row" id="angle-row">
+        <button class="fmt-btn active" data-angle="auto" onclick="pickAngle(this)">Auto</button>
+        <button class="fmt-btn" data-angle="context" onclick="pickAngle(this)">Context</button>
+        <button class="fmt-btn" data-angle="question" onclick="pickAngle(this)">Question</button>
+      </div>
+      <div class="fmt-hint">Context adds one fact the original doesn't say. Question asks something both sides could answer.</div>
+      <button class="btn" id="quote-btn" onclick="doQuote()">Write Quote Post</button>
+    </div>
+    <div class="spinner" id="quote-spinner">⏳ Writing...</div>
+    <div class="error" id="quote-error"></div>
+    <div class="result-card" id="quote-result">
+      <div class="result-label" id="quote-label">Quote Post</div>
+      <div class="result-text" id="quote-output"></div>
+      <div class="result-meta">
+        <span class="result-chars" id="quote-chars"></span>
+        <div class="actions">
+          <button class="copy-btn" onclick="copyText('quote-output', this)">Copy</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('quote-output', 'quote', this)">Mark as posted</button>
+        </div>
+      </div>
+      <div class="note">On X: open the original post, tap Repost, choose Quote, paste this.</div>
+      <div class="overlap" id="quote-overlap"></div>
+      <div class="note" id="quote-note" style="display:none"></div>
+      <div class="warnings" id="quote-warnings"></div>
     </div>
   </div>
 
@@ -273,14 +370,44 @@ HTML = """<!DOCTYPE html>
       <div class="result-text" id="headline-output"></div>
       <div class="result-meta">
         <span class="result-chars" id="headline-chars"></span>
-        <button class="copy-btn" onclick="copyText('headline-output', this)">Copy</button>
+        <div class="actions">
+          <button class="copy-btn" onclick="copyText('headline-output', this)">Copy</button>
+          <button class="copy-btn" onclick="openCard('headline-output')">Image</button>
+          <button class="copy-btn posted-btn" onclick="markPosted('headline-output', 'post', this)">Mark as posted</button>
+        </div>
       </div>
       <div class="overlap" id="headline-overlap"></div>
       <div class="note" id="headline-note" style="display:none"></div>
       <div class="warnings" id="headline-warnings"></div>
     </div>
   </div>
+  <div class="tip" style="margin-top:28px">
+    <strong>One click from X</strong> (on a computer)
+    <p style="margin-top:4px">Drag a button to your browser's bookmarks bar. On x.com, select a post's text and click the bookmark: this page opens with the text in and starts writing.</p>
+    <div class="bm-row">
+      <a class="bm" data-tab="rewrite" href="#">SF Rewrite</a>
+      <a class="bm" data-tab="quote" href="#">SF Quote</a>
+      <a class="bm" data-tab="headline" href="#">SF Headline</a>
+    </div>
+  </div>
 </main>
+
+<div class="modal" id="card-modal" hidden onclick="if(event.target===this)closeCard()">
+  <div class="modal-box" role="dialog" aria-label="Image for your post">
+    <div class="modal-head"><strong>Image for your post</strong><button class="icon-btn" onclick="closeCard()" aria-label="Close">✕</button></div>
+    <div class="fmt-row" style="margin-top:0">
+      <button class="fmt-btn active" data-size="wide" onclick="cardSize(this)">Wide 16:9</button>
+      <button class="fmt-btn" data-size="tall" onclick="cardSize(this)">Tall 4:5</button>
+    </div>
+    <canvas id="card-canvas"></canvas>
+    <div class="modal-actions">
+      <button class="btn" onclick="cardDownload()">Download</button>
+      <button class="btn secondary" onclick="cardCopy(this)">Copy image</button>
+      <button class="btn secondary" id="card-share-btn" onclick="cardShare()" hidden>Share to X</button>
+    </div>
+    <p class="note">Attach it to your post on X. Tall images usually fill more of the screen on phones.</p>
+  </div>
+</div>
 
 <script>
 function switchTab(name) {
@@ -319,9 +446,17 @@ function flash(btn, orig) {
 let selectedFormat = 'auto';
 
 function pickFormat(btn) {
-  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
+  btn.parentElement.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   selectedFormat = btn.dataset.format;
+}
+
+let selectedAngle = 'auto';
+
+function pickAngle(btn) {
+  btn.parentElement.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedAngle = btn.dataset.angle;
 }
 
 const FMT_HINT = 'Most posts should be straight news or news + context. Use a question when the story has a real open question.';
@@ -392,7 +527,10 @@ async function doRewrite() {
       showNote('thread-note', data.note);
       showWarnings('thread-warnings1', data.warnings1);
       showWarnings('thread-warnings2', data.warnings2);
+      document.getElementById('thread-post1').dataset.format = 'Post + reply';
       document.getElementById('thread-result').style.display = 'block';
+      afterResult('thread-post1', 'thread-warnings1');
+      afterResult('thread-post2', 'thread-warnings2');
     } else {
       document.getElementById('rewrite-label').textContent =
         'Rewritten Post' + (data.format_label ? ' · ' + data.format_label : '');
@@ -403,7 +541,9 @@ async function doRewrite() {
       else { note.style.display = 'none'; }
       showOverlap('rewrite-overlap', data.overlap);
       showWarnings('rewrite-warnings', data.warnings);
+      document.getElementById('rewrite-output').dataset.format = data.format_label || '';
       document.getElementById('rewrite-result').style.display = 'block';
+      afterResult('rewrite-output', 'rewrite-warnings');
     }
   } catch(e) {
     const el = document.getElementById('rewrite-error');
@@ -415,7 +555,7 @@ async function doRewrite() {
   }
 }
 
-async function callEndpoint(endpoint, payload, btnId, spinnerId, errorId, resultId, outputId, charsId, warningsId, limit) {
+async function callEndpoint(endpoint, payload, btnId, spinnerId, errorId, resultId, outputId, charsId, warningsId, limit, formatName) {
   document.getElementById(btnId).disabled = true;
   document.getElementById(spinnerId).style.display = 'block';
   document.getElementById(resultId).style.display = 'none';
@@ -433,7 +573,10 @@ async function callEndpoint(endpoint, payload, btnId, spinnerId, errorId, result
     showOverlap(warningsId.replace('-warnings', '-overlap'), data.overlap);
     showNote(warningsId.replace('-warnings', '-note'), data.note);
     showWarnings(warningsId, data.warnings);
+    document.getElementById(outputId).dataset.format = data.angle_label ? 'Quote: ' + data.angle_label : (formatName || '');
+    if (data.angle_label) document.getElementById('quote-label').textContent = 'Quote Post · ' + data.angle_label;
     document.getElementById(resultId).style.display = 'block';
+    afterResult(outputId, warningsId);
   } catch(e) {
     const el = document.getElementById(errorId);
     el.textContent = 'Error: ' + e.message;
@@ -447,13 +590,19 @@ async function callEndpoint(endpoint, payload, btnId, spinnerId, errorId, result
 function doSummarise() {
   const content = document.getElementById('summarise-input').value.trim();
   if (!content) return;
-  callEndpoint('/summarise', { content }, 'summarise-btn', 'summarise-spinner', 'summarise-error', 'summarise-result', 'summarise-output', 'summarise-chars', 'summarise-warnings', 280);
+  callEndpoint('/summarise', { content }, 'summarise-btn', 'summarise-spinner', 'summarise-error', 'summarise-result', 'summarise-output', 'summarise-chars', 'summarise-warnings', 280, 'Summary');
 }
 
 function doHeadline() {
   const content = document.getElementById('headline-input').value.trim();
   if (!content) return;
-  callEndpoint('/headline', { content }, 'headline-btn', 'headline-spinner', 'headline-error', 'headline-result', 'headline-output', 'headline-chars', 'headline-warnings', 280);
+  callEndpoint('/headline', { content }, 'headline-btn', 'headline-spinner', 'headline-error', 'headline-result', 'headline-output', 'headline-chars', 'headline-warnings', 280, 'Headline');
+}
+
+function doQuote() {
+  const content = document.getElementById('quote-input').value.trim();
+  if (!content) return;
+  callEndpoint('/quote', { content, angle: selectedAngle }, 'quote-btn', 'quote-spinner', 'quote-error', 'quote-result', 'quote-output', 'quote-chars', 'quote-warnings', 280);
 }
 
 document.addEventListener('keydown', e => {
@@ -461,10 +610,13 @@ document.addEventListener('keydown', e => {
     const active = document.querySelector('.tab.active').id;
     if (active === 'tab-rewrite') doRewrite();
     else if (active === 'tab-summarise') doSummarise();
+    else if (active === 'tab-quote') doQuote();
     else doHeadline();
   }
 });
 </script>
+<script src="/static/extras.js"></script>
+<script src="/static/cards.js"></script>
 </body>
 </html>"""
 
@@ -608,6 +760,30 @@ def headline_endpoint():
                                       "warnings": check_post(result, limit=280)}, content, result))
     except Exception as e:
         log.error(f"Headline error: {e}")
+        return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
+
+
+@app.route("/quote", methods=["POST"])
+def quote_endpoint():
+    """A short take to post as a quote of the original (X shows the original underneath)."""
+    data = request.get_json()
+    content = clean_pasted((data or {}).get("content", ""))
+    if not content:
+        return jsonify({"error": "No post provided"}), 400
+    if len(content) > 5000:
+        return jsonify({"error": "Text too long"}), 400
+    try:
+        angle = pick_angle((data or {}).get("angle", "auto"))
+        result, retried = _generate(build_quote_prompt(content, angle), content)
+        return jsonify(_with_overlap({
+            "result": result,
+            "angle": angle,
+            "angle_label": QUOTE_ANGLES[angle]["label"],
+            "note": retried,
+            "warnings": check_post(result, limit=280),
+        }, content, result))
+    except Exception as e:
+        log.error(f"Quote error: {e}")
         return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
 
 
