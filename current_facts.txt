@@ -1,0 +1,38 @@
+# Secret Feeds: current facts
+#
+# Every line below (except lines starting with #) is sent to the AI with each request,
+# together with today's date, and overrides what the AI remembers.
+#
+# Heads of state and government for every country are also downloaded from Wikidata
+# once a day (world_facts.py) and added for whichever countries a story mentions.
+# Use this file for:
+#   - corrections, if Wikidata is ever wrong or slow to update (this file wins)
+#   - people Wikidata's list doesn't cover: foreign and defence ministers, army chiefs,
+#     opposition leaders, spokespeople, central bank heads, anyone you cover often
+#   - a backup for the top countries if Wikidata can't be reached
+# When someone changes job, edit the line here and redeploy.
+#
+# Last checked: 28 September 2026 (each line confirmed against news reports).
+
+Donald Trump is the current US President (second term, since 20 January 2025). He is not a former president.
+UK Prime Minister: Andy Burnham (since July 2026). Keir Starmer is a former prime minister.
+Hungarian Prime Minister: Péter Magyar (Tisza party, since May 2026). Viktor Orbán is a former prime minister.
+Hungarian President: András Baka (elected August 2026).
+Iran's Supreme Leader: Mojtaba Khamenei (since March 2026, after his father Ali Khamenei was killed). Iran's President: Masoud Pezeshkian.
+Ukrainian President: Volodymyr Zelenskyy. Ukrainian Prime Minister: Serhii Koretskyi (since July 2026).
+Israeli Prime Minister: Benjamin Netanyahu. Israeli President: Isaac Herzog.
+Russian President: Vladimir Putin.
+Chinese President: Xi Jinping. Chinese Premier: Li Qiang.
+German Chancellor: Friedrich Merz.
+French President: Emmanuel Macron. French Prime Minister: Sébastien Lecornu.
+Kenyan President: William Ruto.
+Japanese Prime Minister: Sanae Takaichi.
+Indian Prime Minister: Narendra Modi.
+Turkish President: Recep Tayyip Erdoğan.
+Saudi Arabia: King Salman. Crown Prince and Prime Minister: Mohammed bin Salman.
+Qatar's Emir: Tamim bin Hamad Al Thani.
+Egyptian President: Abdel Fattah el-Sisi.
+Pakistani Prime Minister: Shehbaz Sharif.
+Syrian President: Ahmed al-Sharaa.
+Lebanese President: Joseph Aoun. Lebanese Prime Minister: Nawaf Salam.
+Venezuela's acting president: Delcy Rodríguez.
