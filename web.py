@@ -158,13 +158,31 @@ HTML = """<!DOCTYPE html>
   .modal-actions .btn { width: auto; flex: 1; margin-top: 0; padding: 10px 14px; font-size: 0.8rem; }
   .btn.secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--brand); box-shadow: none; }
 
+  /* Photo tab */
+  .field { margin-top: 14px; }
+  .field label { margin-bottom: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  input[type=text], input[type=date], select { width: 100%; background: var(--field); border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.9rem; padding: 10px 12px; outline: none; }
+  input[type=text]:focus, input[type=date]:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(255,69,0,0.12); }
+  input[type=range] { width: 100%; accent-color: var(--brand); }
+  .drop { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 110px; border: 2px dashed var(--border-strong); border-radius: 12px; background: var(--field); color: var(--muted); font-size: 0.88rem; cursor: pointer; padding: 14px; transition: border-color 0.2s, background 0.2s; }
+  .drop:hover, .drop.over { border-color: var(--brand); background: var(--accent-soft); color: var(--accent); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .range-row { display: flex; align-items: center; gap: 10px; }
+  .range-row span { font-size: 0.78rem; color: var(--muted); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+  #photo-canvas { max-width: 100%; max-height: 62vh; width: auto; height: auto; display: block; margin: 0 auto 10px; border-radius: 10px; cursor: crosshair; background: #F3E6DD; }
+  .note-bad { color: var(--err-text); }
+  .fineprint { font-size: 0.72rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
   /* Phones: logo and status on one row, tabs on the next */
   @media (max-width: 600px) {
     header { flex-wrap: wrap; padding: 8px 16px; }
     .logo { height: 48px; }
     nav { order: 3; width: 100%; }
-    nav { gap: 4px; }
-    .nav-btn { flex: 1; padding: 7px 2px; font-size: 0.74rem; }
+    nav { gap: 4px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    nav::-webkit-scrollbar { display: none; }
+    .nav-btn { flex: 1 0 auto; padding: 7px 12px; font-size: 0.76rem; }
+    .grid2 { grid-template-columns: 1fr; }
     .actions .copy-btn { padding: 6px 10px; }
     main { padding: 24px 16px 40px; }
   }
@@ -178,6 +196,7 @@ HTML = """<!DOCTYPE html>
     <button class="nav-btn" id="nav-quote" onclick="switchTab('quote')">Quote</button>
     <button class="nav-btn" id="nav-headline" onclick="switchTab('headline')">Headline</button>
     <button class="nav-btn" id="nav-summarise" onclick="switchTab('summarise')">Summarise</button>
+    <button class="nav-btn" id="nav-photo" onclick="switchTab('photo')">Photo</button>
   </nav>
   <span><span class="dot"></span><span class="status">Live</span></span>
 </header>
@@ -381,6 +400,114 @@ HTML = """<!DOCTYPE html>
       <div class="warnings" id="headline-warnings"></div>
     </div>
   </div>
+  <!-- PHOTO TAB -->
+  <div class="tab" id="tab-photo">
+    <div class="page-title">Photo</div>
+    <p class="page-sub">Add your logo, a caption and a photo credit. It all happens in your browser: the photo is never uploaded.</p>
+    <div class="card">
+      <label for="photo-file">Photo</label>
+      <label class="drop" id="photo-drop" for="photo-file" style="text-transform:none;letter-spacing:0;font-weight:500;margin:0">
+        <input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+        <span id="photo-drop-label">Choose a photo, or drop one here</span>
+      </label>
+
+      <div class="field">
+        <label for="photo-source">Where is the photo from?</label>
+        <select id="photo-source">
+          <option value="own">I took it / Secret Feeds made it</option>
+          <option value="handout">Official handout (government, army, ministry)</option>
+          <option value="licensed">Licensed or Creative Commons</option>
+          <option value="other">News agency or another account</option>
+        </select>
+        <div class="note" id="photo-source-note"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label for="photo-credit">Credit</label>
+          <input type="text" id="photo-credit" maxlength="80" placeholder="Photo: name / organisation">
+        </div>
+        <div class="field">
+          <label for="photo-place">Place</label>
+          <input type="text" id="photo-place" maxlength="40" placeholder="e.g. Kyiv">
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="photo-date">Date taken</label>
+          <input type="date" id="photo-date">
+        </div>
+        <div class="field">
+          <label>Crop</label>
+          <div class="fmt-row" id="photo-crop-row" style="margin-top:0">
+            <button class="fmt-btn active" data-value="original">Original</button>
+            <button class="fmt-btn" data-value="wide">16:9</button>
+            <button class="fmt-btn" data-value="tall">4:5</button>
+            <button class="fmt-btn" data-value="square">1:1</button>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="photo-caption">Caption on the photo (optional)</label>
+        <input type="text" id="photo-caption" maxlength="90" placeholder="Who or what, doing what. Present tense, e.g. Rescuers search a collapsed building">
+        <div class="char-count" id="photo-caption-count">0 / 90</div>
+      </div>
+
+      <div class="field">
+        <label>Logo position</label>
+        <div class="fmt-row" id="photo-corner-row" style="margin-top:0">
+          <button class="fmt-btn" data-value="tl">Top left</button>
+          <button class="fmt-btn" data-value="tr">Top right</button>
+          <button class="fmt-btn" data-value="bl">Bottom left</button>
+          <button class="fmt-btn active" data-value="br">Bottom right</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Logo style</label>
+        <div class="fmt-row" id="photo-style-row" style="margin-top:0">
+          <button class="fmt-btn active" data-value="auto">Auto</button>
+          <button class="fmt-btn" data-value="colour">Colour</button>
+          <button class="fmt-btn" data-value="white">White</button>
+          <button class="fmt-btn" data-value="plate">On a plate</button>
+        </div>
+        <div class="fmt-hint">Auto uses the white logo on dark areas and the colour logo on light ones.</div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="photo-size">Logo size</label>
+          <div class="range-row"><input type="range" id="photo-size" min="6" max="22" value="14"><span id="photo-size-val">14%</span></div>
+        </div>
+        <div class="field">
+          <label for="photo-opacity">Logo opacity</label>
+          <div class="range-row"><input type="range" id="photo-opacity" min="40" max="100" value="90"><span id="photo-opacity-val">90%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="photo-preview-card" hidden>
+      <canvas id="photo-canvas" aria-label="Preview of your photo"></canvas>
+      <div class="result-meta" style="margin-top:0">
+        <span class="result-chars" id="photo-info"></span>
+        <span class="result-chars">Tap the photo to reframe a crop</span>
+      </div>
+      <div class="error" id="photo-export-note"></div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn photo-export" onclick="photoDownload()">Download</button>
+        <button class="btn secondary photo-export" onclick="photoCopy(this)">Copy image</button>
+        <button class="btn secondary photo-export" id="photo-share-btn" onclick="photoShare()" hidden>Share to X</button>
+      </div>
+      <div class="field">
+        <label for="photo-alt">Alt text for X</label>
+        <textarea id="photo-alt" maxlength="1000" style="min-height:70px" placeholder="Describe what's in the photo for people who can't see it: who, what, where. Don't start with 'Image of'."></textarea>
+        <div class="result-meta">
+          <span class="result-chars" id="photo-alt-count">0 / 1000</span>
+          <button class="copy-btn" onclick="copyAlt(this)">Copy alt text</button>
+        </div>
+      </div>
+      <p class="fineprint">Saved as a JPEG, long side up to 2048 px and under X's 5 MB limit. Location data (GPS) and other camera metadata are removed. On X, tap "+Alt" on the image to paste the alt text.</p>
+    </div>
+  </div>
+
   <div class="tip" style="margin-top:28px">
     <strong>One click from X</strong> (on a computer)
     <p style="margin-top:4px">Drag a button to your browser's bookmarks bar. On x.com, select a post's text and click the bookmark: this page opens with the text in and starts writing.</p>
@@ -599,6 +726,12 @@ function doHeadline() {
   callEndpoint('/headline', { content }, 'headline-btn', 'headline-spinner', 'headline-error', 'headline-result', 'headline-output', 'headline-chars', 'headline-warnings', 280, 'Headline');
 }
 
+function copyAlt(btn) {
+  const t = document.getElementById('photo-alt').value;
+  if (!t) return;
+  navigator.clipboard.writeText(t).then(() => flash(btn, 'Copy alt text'));
+}
+
 function doQuote() {
   const content = document.getElementById('quote-input').value.trim();
   if (!content) return;
@@ -611,12 +744,13 @@ document.addEventListener('keydown', e => {
     if (active === 'tab-rewrite') doRewrite();
     else if (active === 'tab-summarise') doSummarise();
     else if (active === 'tab-quote') doQuote();
-    else doHeadline();
+    else if (active === 'tab-headline') doHeadline();
   }
 });
 </script>
 <script src="/static/extras.js"></script>
 <script src="/static/cards.js"></script>
+<script src="/static/photo.js"></script>
 </body>
 </html>"""
 
