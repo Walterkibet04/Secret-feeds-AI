@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from generator import (
     call_ai, FORMATS, pick_format, build_rewrite_prompt,
     build_thread_prompt, build_summary_prompt, build_headline_prompt, retry_prompt,
-    QUOTE_ANGLES, pick_angle, build_quote_prompt,
+    QUOTE_ANGLES, pick_angle, build_quote_prompt, build_caption_prompt,
 )
 from checks import (
     check_post, clean_text, clean_pasted, unwrap_quotes,
@@ -172,6 +172,7 @@ HTML = """<!DOCTYPE html>
   .range-row span { font-size: 0.78rem; color: var(--muted); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
   #photo-canvas { max-width: 100%; max-height: 62vh; width: auto; height: auto; display: block; margin: 0 auto 10px; border-radius: 10px; cursor: crosshair; background: #F3E6DD; }
   .note-bad { color: var(--err-text); }
+  [hidden] { display: none !important; }
   .fineprint { font-size: 0.72rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
 
   /* Phones: logo and status on one row, tabs on the next */
@@ -403,8 +404,12 @@ HTML = """<!DOCTYPE html>
   <!-- PHOTO TAB -->
   <div class="tab" id="tab-photo">
     <div class="page-title">Photo</div>
-    <p class="page-sub">Add your logo, a caption and a photo credit. It all happens in your browser: the photo is never uploaded.</p>
+    <p class="page-sub">Add your logo and a credit to a photo, or make a quote card: someone's photo with their exact words. It all happens in your browser: the photo is never uploaded.</p>
     <div class="card">
+      <div class="fmt-row" id="photo-mode-row" style="margin:0 0 16px">
+        <button class="fmt-btn active" data-value="photo">Photo + caption</button>
+        <button class="fmt-btn" data-value="quote">Quote card</button>
+      </div>
       <label for="photo-file">Photo</label>
       <label class="drop" id="photo-drop" for="photo-file" style="text-transform:none;letter-spacing:0;font-weight:500;margin:0">
         <input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
@@ -427,17 +432,17 @@ HTML = """<!DOCTYPE html>
           <label for="photo-credit">Credit</label>
           <input type="text" id="photo-credit" maxlength="80" placeholder="Photo: name / organisation">
         </div>
-        <div class="field">
+        <div class="field photo-only">
           <label for="photo-place">Place</label>
           <input type="text" id="photo-place" maxlength="40" placeholder="e.g. Kyiv">
         </div>
       </div>
       <div class="grid2">
         <div class="field">
-          <label for="photo-date">Date taken</label>
+          <label for="photo-date" id="photo-date-label">Date taken</label>
           <input type="date" id="photo-date">
         </div>
-        <div class="field">
+        <div class="field photo-only">
           <label>Crop</label>
           <div class="fmt-row" id="photo-crop-row" style="margin-top:0">
             <button class="fmt-btn active" data-value="original">Original</button>
@@ -447,7 +452,49 @@ HTML = """<!DOCTYPE html>
           </div>
         </div>
       </div>
-      <div class="field">
+      <div class="quote-only" hidden>
+        <div class="field">
+          <label for="qc-quote">Their exact words</label>
+          <textarea id="qc-quote" maxlength="600" style="min-height:90px" placeholder="Paste the words exactly as they said or wrote them."></textarea>
+          <div class="char-count" id="qc-quote-count">0 characters</div>
+          <div class="fmt-hint">Copy the words from the original post, transcript or video, never from memory. If you shorten a quote, cut at a sentence break and mark the cut with … A misquote is the fastest way to get reported and Community-Noted.</div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="qc-speaker">Who said it</label>
+            <input type="text" id="qc-speaker" maxlength="60" placeholder="e.g. Donald Trump">
+          </div>
+          <div class="field">
+            <label for="qc-title">Their title</label>
+            <input type="text" id="qc-title" maxlength="60" placeholder="e.g. US President">
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="qc-where">Where they said it (optional)</label>
+            <input type="text" id="qc-where" maxlength="50" placeholder="e.g. on Truth Social, at a press briefing">
+          </div>
+          <div class="field">
+            <label>Card size</label>
+            <div class="fmt-row" id="qc-size-row" style="margin-top:0">
+              <button class="fmt-btn active" data-value="square">Square 1:1</button>
+              <button class="fmt-btn" data-value="tall">Tall 4:5</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Text panel</label>
+          <div class="fmt-row" id="qc-panel-row" style="margin-top:0">
+            <button class="fmt-btn active" data-value="light">Light panel</button>
+            <button class="fmt-btn" data-value="dark">Dark</button>
+          </div>
+        </div>
+        <div class="tip" style="margin:14px 0 0">
+          <strong>Photos you can use:</strong> official photos released by the White House, State House or ministries ("Official handout"); US federal government photos are generally public domain. Wikimedia Commons lists the licence for each photo. Don't use agency photos (Reuters, AP, AFP, Getty) or other outlets' graphics.
+        </div>
+      </div>
+
+      <div class="field photo-only">
         <label for="photo-caption">Caption on the photo (optional)</label>
         <input type="text" id="photo-caption" maxlength="90" placeholder="Who or what, doing what. Present tense, e.g. Rescuers search a collapsed building">
         <div class="char-count" id="photo-caption-count">0 / 90</div>
@@ -458,8 +505,8 @@ HTML = """<!DOCTYPE html>
         <div class="fmt-row" id="photo-corner-row" style="margin-top:0">
           <button class="fmt-btn" data-value="tl">Top left</button>
           <button class="fmt-btn" data-value="tr">Top right</button>
-          <button class="fmt-btn" data-value="bl">Bottom left</button>
-          <button class="fmt-btn active" data-value="br">Bottom right</button>
+          <button class="fmt-btn photo-only" data-value="bl">Bottom left</button>
+          <button class="fmt-btn active photo-only" data-value="br">Bottom right</button>
         </div>
       </div>
       <div class="field">
@@ -491,10 +538,28 @@ HTML = """<!DOCTYPE html>
         <span class="result-chars">Tap the photo to reframe a crop</span>
       </div>
       <div class="error" id="photo-export-note"></div>
+      <div class="warnings" id="photo-warn"></div>
       <div class="modal-actions" style="margin-top:12px">
         <button class="btn photo-export" onclick="photoDownload()">Download</button>
         <button class="btn secondary photo-export" onclick="photoCopy(this)">Copy image</button>
         <button class="btn secondary photo-export" id="photo-share-btn" onclick="photoShare()" hidden>Share to X</button>
+      </div>
+      <div class="quote-only" hidden>
+        <button class="btn secondary" id="qc-caption-btn" onclick="writeCardCaption()" style="margin-top:14px">Write caption for X</button>
+        <div class="error" id="qc-caption-error"></div>
+        <div class="result-card" id="qc-caption-result" style="border-left-width:3px">
+          <div class="result-label">Caption</div>
+          <div class="result-text" id="qc-caption-output"></div>
+          <div class="result-meta">
+            <span class="result-chars" id="qc-caption-chars"></span>
+            <div class="actions">
+              <button class="copy-btn" onclick="copyText('qc-caption-output', this)">Copy</button>
+              <button class="copy-btn posted-btn" onclick="markPosted('qc-caption-output', 'post', this)">Mark as posted</button>
+            </div>
+          </div>
+          <div class="note" id="qc-caption-note" style="display:none"></div>
+          <div class="warnings" id="qc-caption-warnings"></div>
+        </div>
       </div>
       <div class="field">
         <label for="photo-alt">Alt text for X</label>
@@ -504,7 +569,7 @@ HTML = """<!DOCTYPE html>
           <button class="copy-btn" onclick="copyAlt(this)">Copy alt text</button>
         </div>
       </div>
-      <p class="fineprint">Saved as a JPEG, long side up to 2048 px and under X's 5 MB limit. Location data (GPS) and other camera metadata are removed. On X, tap "+Alt" on the image to paste the alt text.</p>
+      <p class="fineprint">Quote cards are 1080 px wide. Photos keep their size up to 2048 px on the long side. Saved as a JPEG under X's 5 MB limit. Location data (GPS) and other camera metadata are removed. On X, tap "+Alt" on the image to paste the alt text.</p>
     </div>
   </div>
 
@@ -918,6 +983,26 @@ def quote_endpoint():
         }, content, result))
     except Exception as e:
         log.error(f"Quote error: {e}")
+        return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
+
+
+@app.route("/caption", methods=["POST"])
+def caption_endpoint():
+    """X caption for a quote card. The card shows the words; the caption says who and what about."""
+    data = request.get_json() or {}
+    field = lambda k, n: clean_text(str(data.get(k, ""))).strip()[:n]
+    quote, speaker = field("quote", 1000), field("speaker", 120)
+    if not quote or not speaker:
+        return jsonify({"error": "Add the quote and who said it"}), 400
+    try:
+        result, retried = _generate(
+            build_caption_prompt(quote, speaker, field("title", 120), field("where", 120), field("date", 40)),
+            quote,
+        )
+        return jsonify(_with_overlap({"result": result, "note": retried,
+                                      "warnings": check_post(result, limit=280)}, quote, result))
+    except Exception as e:
+        log.error(f"Caption error: {e}")
         return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
 
 

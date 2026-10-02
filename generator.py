@@ -332,6 +332,28 @@ SOURCE POST (copied from X; everything between <<< and >>>, the markers are not 
 
 Write ONLY the quote post text. No labels. No explanation."""
 
+# Caption for a quote card: the image already shows the words, the speaker and the date.
+CAPTION_PROMPT = """You are writing the X caption for a Secret Feeds quote card. The image already shows a person's exact words, their name, title and the date.
+
+""" + VOICE + """
+
+YOUR JOB: a short caption, one or two lines, under 200 characters.
+- Start with the flag of the speaker's country, then who is speaking (country, title, full name) and the topic, ending with a colon. For example: "🇺🇸 US President Donald Trump on tariffs:" or "🇰🇪 Kenyan President William Ruto on the death of Jackson Karua:"
+- Optionally add one short line of context, only from the details below or long-established background.
+- Never repeat or paraphrase the quote. Readers can see it in the image.
+- No question. No hashtags. No quotation marks.
+
+QUOTE CARD DETAILS (between <<< and >>>; the markers are not quotation marks):
+<<<
+Speaker: {speaker}
+Title given: {title}
+Where it was said: {where}
+Date: {date}
+Exact words: {quote}
+>>>
+
+Write ONLY the caption."""
+
 HEADLINE_PROMPT = """You are writing a breaking news headline tweet for Secret Feeds, a global news account on X.
 
 GOAL: Turn the content into a short punchy headline AND rewrite it completely. Never copy the original wording.
@@ -488,6 +510,12 @@ def build_quote_prompt(tweet: str, angle: str) -> str:
     a = QUOTE_ANGLES[angle]
     return _fill(QUOTE_PROMPT, tweet, tweet=tweet, angle_label=a["label"],
                  angle_rules=a["rules"], angle_example=a["example"])
+
+
+def build_caption_prompt(quote: str, speaker: str, title: str, where: str, date: str) -> str:
+    source = f"{title} {speaker}: {quote}"
+    return _fill(CAPTION_PROMPT, source, quote=quote, speaker=speaker,
+                 title=title or "(not given)", where=where or "(not given)", date=date or "(not given)")
 
 
 def build_headline_prompt(content: str) -> str:

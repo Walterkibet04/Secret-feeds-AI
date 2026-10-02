@@ -9,6 +9,10 @@
  *  - export as JPEG, long side at most 2048 px and under X's 5 MB photo limit;
  *    re-encoding drops EXIF metadata, including GPS location;
  *  - no logo on photos you don't have the rights to (agency or other accounts' photos).
+ *
+ * Quote card mode: the person's photo, their exact words on a panel, name, title, date and
+ * where they said it, your logo and the photo credit. 1080 px wide (square or 4:5), the
+ * usual size for quote graphics on X.
  */
 (function () {
   const LONG_EDGE = 2048;
@@ -22,6 +26,7 @@
     crop: 'original', fx: 0.5, fy: 0.5,
     corner: 'br', style: 'auto', size: 14, opacity: 90,
     crop_rect: null, out_w: 0, out_h: 0,
+    mode: 'photo', quote: '', speaker: '', title: '', where: '', cardSize: 'square', panel: 'light', warn: '',
   };
 
   const logo = new Image();
@@ -41,7 +46,17 @@
     if (!s.img) return 'Choose a photo first.';
     if (s.source === 'other') return 'Export is off for photos you don\'t have the rights to.';
     if (!s.credit.trim()) return 'Add a credit. Every news photo carries one.';
+    if (s.mode === 'quote') {
+      if (!cleanQuote(s.quote)) return 'Add the quote: their exact words.';
+      if (!s.speaker.trim()) return 'Add who said it.';
+      if (!s.date) return 'Add the date it was said.';
+    }
     return '';
+  }
+
+  // Strip quotation marks people paste around the words; the card adds its own.
+  function cleanQuote(q) {
+    return (q || '').trim().replace(/^["“”'‘’«»]+|["“”'‘’«»]+$/g, '').replace(/\s+/g, ' ').trim();
   }
 
   function refreshControls() {
@@ -52,11 +67,18 @@
     document.querySelectorAll('.photo-export').forEach(b => { b.disabled = !!problem; });
     $('photo-export-note').textContent = problem;
     $('photo-export-note').style.display = problem ? 'block' : 'none';
+    const quoteMode = s.mode === 'quote';
+    document.querySelectorAll('.photo-only').forEach(el => { el.hidden = quoteMode; });
+    document.querySelectorAll('.quote-only').forEach(el => { el.hidden = !quoteMode; });
+    $('photo-date-label').textContent = quoteMode ? 'Date said' : 'Date taken';
+    // Quote cards keep the logo in a top corner: show the matching top button as selected.
+    const shown = quoteMode ? 't' + s.corner.slice(1) : s.corner;
+    document.querySelectorAll('#photo-corner-row button').forEach(btn => btn.classList.toggle('active', btn.dataset.value === shown));
   }
 
   // ── geometry ──────────────────────────────────────────────────────────────
-  function cropRect() {
-    const r = RATIOS[s.crop];
+  function cropRect(ratio) {
+    const r = ratio !== undefined ? ratio : RATIOS[s.crop];
     if (!r) return { x: 0, y: 0, w: s.w, h: s.h };
     let cw = s.w, ch = s.w / r;
     if (ch > s.h) { ch = s.h; cw = s.h * r; }
@@ -120,9 +142,157 @@
     return [s.place.trim(), d, s.credit.trim()].filter(Boolean).join('  ·  ');
   }
 
+  function prettyDate() {
+    if (!s.date) return '';
+    const [y, m, day] = s.date.split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function drawLogo(ctx, W, x, y, lw, lh) {
+    let variant = s.style;
+    if (variant === 'auto' || variant === 'plate') {
+      variant = s.style === 'plate' ? 'plate' : (luminance(ctx, x, y, lw, lh) < 0.35 ? 'white' : 'colour');
+    }
+    ctx.save();
+    ctx.globalAlpha = s.opacity / 100;
+    if (variant === 'plate') {
+      const pad = Math.round(lh * 0.22);
+      ctx.fillStyle = 'rgba(255,246,240,0.94)';
+      roundRect(ctx, x - pad, y - pad, lw + pad * 2, lh + pad * 2, Math.round((lh + pad * 2) * 0.14)); ctx.fill();
+      ctx.drawImage(logo, x, y, lw, lh);
+    } else if (variant === 'white') {
+      ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = Math.round(lh * 0.08);
+      ctx.drawImage(whiteLogo(lw, lh), x, y, lw, lh);
+    } else {
+      ctx.shadowColor = 'rgba(255,255,255,0.55)'; ctx.shadowBlur = Math.round(lh * 0.08);
+      ctx.drawImage(logo, x, y, lw, lh);
+    }
+    ctx.restore();
+  }
+
+  // Largest size between max and min at which the quote fits; centred or left lines.
+  function fitQuote(ctx, text, maxW, maxH, maxSize, minSize, lh) {
+    for (let size = maxSize; size >= minSize; size -= 2) {
+      ctx.font = `700 ${size}px ${FONT}`;
+      const lines = wrap(ctx, text, maxW, 99);
+      if (lines.length * size * lh <= maxH) return { size, lines, cut: false };
+    }
+    ctx.font = `700 ${minSize}px ${FONT}`;
+    const maxLines = Math.max(1, Math.floor(maxH / (minSize * lh)));
+    return { size: minSize, lines: wrap(ctx, text, maxW, maxLines), cut: true };
+  }
+
+  async function renderQuoteCard(canvas) {
+    const W = 1080, H = s.cardSize === 'tall' ? 1350 : 1080;
+    canvas.width = W; canvas.height = H;
+    const c = cropRect(W / H);
+    s.crop_rect = c; s.out_w = W; s.out_h = H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(s.img, c.x, c.y, c.w, c.h, 0, 0, W, H);
+
+    const margin = Math.round(W * 0.055);
+    const quote = cleanQuote(s.quote);
+    const name = s.speaker.trim();
+    const meta = [s.title.trim(), prettyDate(), s.where.trim()].filter(Boolean).join('  ·  ');
+    const light = s.panel === 'light';
+    const ink = light ? '#1A1A1A' : '#FFFFFF';
+    const sub = light ? '#6A5A52' : 'rgba(255,255,255,0.82)';
+
+    // Panel area: the lower part of the card.
+    const panelX = light ? margin : 0;
+    const panelW = light ? W - margin * 2 : W;
+    const pad = Math.round(W * 0.05);
+    const markSize = Math.round(W * 0.11);
+    const nameSize = Math.round(W * 0.034), metaSize = Math.round(W * 0.023);
+    const attrH = nameSize * 1.3 + (meta ? metaSize * 1.5 : 0);
+    const maxPanelH = Math.round(H * (s.cardSize === 'tall' ? 0.58 : 0.62));
+    const textMaxH = maxPanelH - pad * 2 - markSize * 0.55 - attrH - pad * 0.5;
+    const textW = panelW - pad * 2;
+    // Never smaller than ~37 px on a 1080 card, or it's unreadable on a phone; longer quotes get cut instead.
+    const fit = fitQuote(ctx, quote, textW, textMaxH, Math.round(W * 0.052), Math.round(W * 0.034), 1.28);
+    s.warn = fit.cut ? 'The quote is too long to fit, so the end is cut off. Use the key sentence; if you shorten it, cut at a sentence break and mark the cut with … Never change their words.' : '';
+    const textH = fit.lines.length * fit.size * 1.28;
+    const panelH = Math.round(pad * 2 + markSize * 0.55 + textH + pad * 0.5 + attrH);
+    const panelY = light ? H - margin - panelH : H - panelH;
+
+    if (light) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = 'rgba(255,248,243,0.97)';
+      roundRect(ctx, panelX, panelY, panelW, panelH, 22); ctx.fill();
+      ctx.restore();
+      // brand bar along the bottom edge of the panel
+      ctx.save();
+      roundRect(ctx, panelX, panelY, panelW, panelH, 22); ctx.clip();
+      ctx.fillStyle = '#FF4500'; ctx.fillRect(panelX, panelY + panelH - 10, panelW * 0.62, 10);
+      ctx.fillStyle = '#FF9A73'; ctx.fillRect(panelX + panelW * 0.62, panelY + panelH - 10, panelW * 0.38, 10);
+      ctx.restore();
+    } else {
+      const top = panelY - H * 0.18;
+      const g = ctx.createLinearGradient(0, top, 0, H);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.35, 'rgba(0,0,0,0.62)'); g.addColorStop(1, 'rgba(0,0,0,0.9)');
+      ctx.fillStyle = g; ctx.fillRect(0, top, W, H - top);
+    }
+
+    // Big opening quote mark.
+    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    ctx.fillStyle = '#FF4500';
+    ctx.font = `700 ${markSize * 1.6}px Georgia, "Times New Roman", serif`;
+    ctx.fillText('“', panelX + pad - markSize * 0.06, panelY + pad * 0.55 - markSize * 0.35);
+
+    // The words.
+    let y = panelY + pad + markSize * 0.55;
+    ctx.fillStyle = ink;
+    ctx.font = `700 ${fit.size}px ${FONT}`;
+    if (!light) { ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6; }
+    ctx.textAlign = light ? 'center' : 'left';
+    const tx = light ? panelX + panelW / 2 : panelX + pad;
+    fit.lines.forEach(line => { ctx.fillText(line, tx, y); y += fit.size * 1.28; });
+
+    // Attribution.
+    y += pad * 0.5;
+    ctx.textAlign = light ? 'right' : 'left';
+    const ax = light ? panelX + panelW - pad : panelX + pad;
+    ctx.fillStyle = light ? ink : '#FFFFFF';
+    ctx.font = `700 ${nameSize}px ${FONT}`;
+    ctx.fillText(name, ax, y);
+    if (meta) {
+      ctx.fillStyle = sub; ctx.font = `500 ${metaSize}px ${FONT}`;
+      ctx.fillText(wrap(ctx, meta, panelW - pad * 2, 1)[0], ax, y + nameSize * 1.3);
+    }
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+
+    // Logo in a top corner; photo credit small in the other top corner.
+    if (logo.naturalWidth) {
+      const lw = Math.round(W * s.size / 100);
+      const lh = Math.round(lw * logo.naturalHeight / logo.naturalWidth);
+      const right = s.corner.endsWith('r');
+      drawLogo(ctx, W, right ? W - margin - lw : margin, margin, lw, lh);
+      const credit = s.credit.trim();
+      if (credit) {
+        ctx.font = `500 ${Math.round(W * 0.019)}px ${FONT}`;
+        ctx.textAlign = right ? 'left' : 'right';
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6;
+        ctx.fillText(credit, right ? margin : W - margin, margin);
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      }
+    }
+    $('photo-info').textContent = `${W} × ${H} px`;
+    $('photo-warn').textContent = s.warn;
+    $('photo-warn').style.display = s.warn ? 'block' : 'none';
+  }
+
   // ── render ────────────────────────────────────────────────────────────────
   async function render(canvas) {
     if (!s.img) return;
+    if (s.mode === 'quote') {
+      try { await Promise.all([document.fonts.load(`700 40px Inter`), document.fonts.load(`500 24px Inter`)]); } catch (e) {}
+      if (!logo.complete) await new Promise(r => { logo.onload = logo.onerror = r; });
+      return renderQuoteCard(canvas);
+    }
+    $('photo-warn').style.display = 'none';
     try { await Promise.all([document.fonts.load(`600 40px Inter`), document.fonts.load(`500 24px Inter`)]); } catch (e) {}
     if (!logo.complete) await new Promise(r => { logo.onload = logo.onerror = r; });
 
@@ -230,7 +400,7 @@
   }
   function fileName() {
     const d = new Date(); const p = n => String(n).padStart(2, '0');
-    return `secret-feeds-photo-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.jpg`;
+    return `secret-feeds-${s.mode === 'quote' ? 'quote' : 'photo'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.jpg`;
   }
 
   window.photoDownload = async function () {
@@ -285,6 +455,32 @@
     }));
   }
 
+  window.writeCardCaption = async function () {
+    const quote = cleanQuote(s.quote), speaker = s.speaker.trim();
+    if (!quote || !speaker) { alert('Add the quote and who said it first.'); return; }
+    const btn = $('qc-caption-btn');
+    btn.disabled = true; btn.textContent = 'Writing…';
+    $('qc-caption-error').style.display = 'none';
+    try {
+      const resp = await fetch('/caption', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote, speaker, title: s.title.trim(), where: s.where.trim(), date: prettyDate() }) });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      $('qc-caption-output').textContent = data.result;
+      $('qc-caption-output').dataset.format = 'Quote card';
+      $('qc-caption-chars').textContent = data.result.length + ' / 280 chars';
+      showNote('qc-caption-note', data.note);
+      showWarnings('qc-caption-warnings', data.warnings);
+      $('qc-caption-result').style.display = 'block';
+      afterResult('qc-caption-output', 'qc-caption-warnings');
+    } catch (e) {
+      $('qc-caption-error').textContent = 'Error: ' + e.message;
+      $('qc-caption-error').style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Write caption for X';
+    }
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     if (!$('tab-photo')) return;
     const today = new Date(); const p = n => String(n).padStart(2, '0');
@@ -311,12 +507,23 @@
     $('photo-size').addEventListener('input', e => { s.size = +e.target.value; $('photo-size-val').textContent = s.size + '%'; redraw(); });
     $('photo-opacity').addEventListener('input', e => { s.opacity = +e.target.value; $('photo-opacity-val').textContent = s.opacity + '%'; redraw(); });
     bindSeg('photo-crop-row', 'crop');
+    bindSeg('photo-mode-row', 'mode');
+    bindSeg('qc-size-row', 'cardSize');
+    bindSeg('qc-panel-row', 'panel');
+    [['qc-quote', 'quote'], ['qc-speaker', 'speaker'], ['qc-title', 'title'], ['qc-where', 'where']].forEach(([id, key]) => {
+      $(id).addEventListener('input', e => { s[key] = e.target.value; redraw(); });
+    });
+    $('qc-quote').addEventListener('input', e => {
+      const n = cleanQuote(e.target.value).length;
+      $('qc-quote-count').textContent = n + ' characters' + (n > 220 ? ' · long for a card, aim for under 220' : '');
+      $('qc-quote-count').className = 'char-count' + (n > 220 ? ' over' : '');
+    });
     bindSeg('photo-corner-row', 'corner');
     bindSeg('photo-style-row', 'style');
 
     // Tap the preview to move the crop towards that point.
     $('photo-canvas').addEventListener('click', e => {
-      if (!s.img || s.crop === 'original') return;
+      if (!s.img || (s.mode !== 'quote' && s.crop === 'original')) return;
       const r = e.target.getBoundingClientRect();
       const c = s.crop_rect;
       s.fx = (c.x + (e.clientX - r.left) / r.width * c.w) / s.w;
