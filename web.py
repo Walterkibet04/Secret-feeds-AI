@@ -7,11 +7,13 @@ from generator import (
     call_ai, FORMATS, pick_format, build_rewrite_prompt,
     build_thread_prompt, build_summary_prompt, build_headline_prompt, retry_prompt,
     QUOTE_ANGLES, pick_angle, build_quote_prompt, build_caption_prompt,
+    build_speaker_prompt,
 )
 from checks import (
     check_post, clean_text, clean_pasted, unwrap_quotes,
     word_overlap, overlap_warnings, too_similar,
 )
+import quotes
 import world_facts
 
 load_dotenv()
@@ -174,6 +176,20 @@ HTML = """<!DOCTYPE html>
   .note-bad { color: var(--err-text); }
   [hidden] { display: none !important; }
   .fineprint { font-size: 0.72rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 0.8rem; color: var(--text); margin: 10px 0 0; cursor: pointer; line-height: 1.45; }
+  label.check input { margin-top: 3px; accent-color: var(--brand); flex: none; }
+  .finder-out { margin-top: 12px; }
+  .finder-status { font-size: 0.82rem; line-height: 1.5; padding: 10px 12px; border-radius: 10px; }
+  .finder-status.ok { background: #F0FAF3; border: 1px solid #BFE5CB; color: var(--green); }
+  .finder-status.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+  .option-btn { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.84rem; line-height: 1.45; cursor: pointer; }
+  .option-btn:hover { border-color: var(--brand); background: var(--accent-soft); }
+  .finder-photo { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--field); font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+  .finder-photo img { width: 64px; height: 64px; object-fit: cover; object-position: top; border-radius: 10px; flex: none; background: #F3E6DD; }
+  .finder-who { color: var(--text); font-weight: 600; }
+  .finder-acts { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+  .finder-photo a, #qc-find-links a { color: var(--accent); font-weight: 600; }
+  .note-warn { color: var(--warn-text); }
 
   /* Phones: logo and status on one row, tabs on the next */
   @media (max-width: 600px) {
@@ -410,6 +426,22 @@ HTML = """<!DOCTYPE html>
         <button class="fmt-btn active" data-value="photo">Photo + caption</button>
         <button class="fmt-btn" data-value="quote">Quote card</button>
       </div>
+      <div class="quote-only" hidden style="margin-bottom:18px">
+        <label for="qc-paste-input">Paste the post or statement</label>
+        <textarea id="qc-paste-input" maxlength="6000" style="min-height:90px" oninput="countChars('qc-paste-input', 'qc-paste-count', 6000)" placeholder="Paste a post from X or a news report. You get who is speaking, their exact words if the text contains them, and a free photo of them."></textarea>
+        <div class="char-count" id="qc-paste-count">0 / 6000</div>
+        <label class="check"><input type="checkbox" id="qc-own"> This is the speaker's own post or statement (from their account, a transcript or an official release), not a report about it</label>
+        <button class="btn" id="qc-find-btn" onclick="findSpeaker()">Find their words and photo</button>
+        <div class="error" id="qc-find-error"></div>
+        <div class="finder-out" id="qc-find-out" hidden>
+          <div class="finder-status" id="qc-find-status"></div>
+          <div id="qc-find-options"></div>
+          <div class="note" id="qc-find-reported" style="display:none"></div>
+          <div class="note" id="qc-find-links" style="display:none"></div>
+        </div>
+        <div class="finder-photo" id="qc-photo-status" hidden></div>
+        <div class="fmt-hint">Only words that appear in your text, inside quotation marks or in the speaker's own post, go on the card. A headline like "Zelensky says Russia fired…" is a reporter's summary, so it has no exact words to take.</div>
+      </div>
       <label for="photo-file">Photo</label>
       <label class="drop" id="photo-drop" for="photo-file" style="text-transform:none;letter-spacing:0;font-weight:500;margin:0">
         <input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
@@ -422,6 +454,7 @@ HTML = """<!DOCTYPE html>
           <option value="own">I took it / Secret Feeds made it</option>
           <option value="handout">Official handout (government, army, ministry)</option>
           <option value="licensed">Licensed or Creative Commons</option>
+          <option value="commons">Wikimedia Commons (found by the tool)</option>
           <option value="other">News agency or another account</option>
         </select>
         <div class="note" id="photo-source-note"></div>
@@ -457,6 +490,7 @@ HTML = """<!DOCTYPE html>
           <label for="qc-quote">Their exact words</label>
           <textarea id="qc-quote" maxlength="600" style="min-height:90px" placeholder="Paste the words exactly as they said or wrote them."></textarea>
           <div class="char-count" id="qc-quote-count">0 characters</div>
+          <div class="note note-warn" id="qc-quote-check" style="display:none"></div>
           <div class="fmt-hint">Copy the words from the original post, transcript or video, never from memory. If you shorten a quote, cut at a sentence break and mark the cut with … A misquote is the fastest way to get reported and Community-Noted.</div>
         </div>
         <div class="grid2">
@@ -490,7 +524,7 @@ HTML = """<!DOCTYPE html>
           </div>
         </div>
         <div class="tip" style="margin:14px 0 0">
-          <strong>Photos you can use:</strong> official photos released by the White House, State House or ministries ("Official handout"); US federal government photos are generally public domain. Wikimedia Commons lists the licence for each photo. Don't use agency photos (Reuters, AP, AFP, Getty) or other outlets' graphics.
+          <strong>Photos you can use:</strong> "Find" fills in a free photo from Wikimedia Commons with its credit, when one exists. Otherwise: official photos released by the White House, State House or ministries ("Official handout"); US federal government photos are generally public domain. Wikimedia Commons lists the licence for each photo. Don't use agency photos (Reuters, AP, AFP, Getty) or other outlets' graphics.
         </div>
       </div>
 
@@ -580,6 +614,7 @@ HTML = """<!DOCTYPE html>
       <a class="bm" data-tab="rewrite" href="#">SF Rewrite</a>
       <a class="bm" data-tab="quote" href="#">SF Quote</a>
       <a class="bm" data-tab="headline" href="#">SF Headline</a>
+      <a class="bm" data-tab="photo" href="#">SF Quote card</a>
     </div>
   </div>
 </main>
@@ -815,6 +850,7 @@ document.addEventListener('keydown', e => {
 </script>
 <script src="/static/extras.js"></script>
 <script src="/static/cards.js"></script>
+<script src="/static/speaker.js"></script>
 <script src="/static/photo.js"></script>
 </body>
 </html>"""
@@ -1004,6 +1040,28 @@ def caption_endpoint():
     except Exception as e:
         log.error(f"Caption error: {e}")
         return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
+
+
+@app.route("/speaker", methods=["POST"])
+def speaker_endpoint():
+    """Quote card helper: who is speaking in a pasted post, and their exact words.
+    A quote is only returned if it is in the pasted text word for word (see quotes.py)."""
+    data = request.get_json() or {}
+    text = clean_pasted(str(data.get("text", "")))
+    own_words = bool(data.get("own_words"))
+    if not text:
+        return jsonify({"error": "Paste the post or the speaker's statement first."}), 400
+    if len(text) > quotes.MAX_TEXT:
+        return jsonify({"error": "Text too long. Paste just the part with the quote."}), 400
+    try:
+        reply = call_ai(build_speaker_prompt(text, own_words))
+    except Exception as e:
+        log.error(f"Speaker error: {e}")
+        return jsonify({"error": "AI rate limit reached. Please wait 1-2 minutes and try again."}), 500
+    result = quotes.analyse(text, reply, own_words)
+    if not result["speaker"]:
+        result["note"] = "I couldn't tell who is speaking. Type their name in the Who said it box. " + result["note"]
+    return jsonify(result)
 
 
 @app.route("/facts")

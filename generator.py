@@ -354,6 +354,34 @@ Exact words: {quote}
 
 Write ONLY the caption."""
 
+# Quote card helper: who is speaking in a pasted post, and their exact words.
+# The model only points at words; quotes.py checks every quote against the pasted text
+# and drops anything that isn't there word for word. A headline that summarises what
+# someone said has no quote to take, and the card must not invent one.
+SPEAKER_PROMPT = FACTS_BLOCK + """
+
+Below, between <<< and >>>, is a post or article pasted from X or a news site. The markers are not quotation marks.
+
+Do five things:
+1. "speaker": whose words this story is about. Give the full name the way English-language news writes it, for example "Volodymyr Zelensky", "Donald Trump", "William Ruto". Fix an obvious misspelling of a well-known name. If it's a body rather than a person (a ministry, an army, a party), give its name.
+2. "role": their role today, short, the way a caption would put it, for example "President of Ukraine", "US President", "Kenyan Foreign Minister". Take it from the input, CURRENT FACTS or WORLD LEADERS. Leave it empty if none of them says.
+3. "where": where they said it, only if the input says, for example "on X", "in his nightly video address", "at a press conference in Kyiv". Otherwise "".
+4. "quote": the speaker's own words, copied EXACTLY from the input, character for character. Pick the one or two sentences that carry the news, ideally 8 to 45 words; shorter is fine if that's all there is. {own_words_rule}
+   If the input contains none of the speaker's own words, return "" for quote. Never write, reword, translate, shorten or finish a quote. A headline that only reports what someone said has no quote, and "" is the right answer.
+5. "reported": what the speaker said or claimed, as one short line in the third person, without quote marks and without their name, using only facts in the input. Example: Russia fired North Korean missiles at an energy facility in Ukraine
+
+Reply with one JSON object and nothing else:
+{{"speaker": "", "role": "", "where": "", "quote": "", "reported": ""}}
+
+<<<
+{text}
+>>>"""
+
+SPEAKER_RULE_QUOTED = ("Only words inside quotation marks count as the speaker's words. "
+                       "Everything outside quotation marks was written by a reporter.")
+SPEAKER_RULE_OWN = ("This input is the speaker's own post or statement, so any sentence in it counts "
+                    "as their words. Copy whole sentences exactly; don't stitch separate sentences together.")
+
 HEADLINE_PROMPT = """You are writing a breaking news headline tweet for Secret Feeds, a global news account on X.
 
 GOAL: Turn the content into a short punchy headline AND rewrite it completely. Never copy the original wording.
@@ -516,6 +544,11 @@ def build_caption_prompt(quote: str, speaker: str, title: str, where: str, date:
     source = f"{title} {speaker}: {quote}"
     return _fill(CAPTION_PROMPT, source, quote=quote, speaker=speaker,
                  title=title or "(not given)", where=where or "(not given)", date=date or "(not given)")
+
+
+def build_speaker_prompt(text: str, own_words: bool = False) -> str:
+    return _fill(SPEAKER_PROMPT, text, text=text,
+                 own_words_rule=SPEAKER_RULE_OWN if own_words else SPEAKER_RULE_QUOTED)
 
 
 def build_headline_prompt(content: str) -> str:

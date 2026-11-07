@@ -210,6 +210,7 @@
       quote: ['quote-input', 'doQuote', 5000],
       headline: ['headline-input', 'doHeadline', 5000],
       summarise: ['summarise-input', 'doSummarise', 10000],
+      photo: ['qc-paste-input', 'findSpeaker', 6000],     // quote card: find the words and photo
     };
     if (!text || !targets[tab]) return;
     const [inputId, fn, max] = targets[tab];

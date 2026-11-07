@@ -13,6 +13,10 @@
  * Quote card mode: the person's photo, their exact words on a panel, name, title, date and
  * where they said it, your logo and the photo credit. 1080 px wide (square or 4:5), the
  * usual size for quote graphics on X.
+ *
+ * "Find their words and photo": the server (/speaker, quotes.py) names the speaker and
+ * returns their words only if they are in the pasted text word for word; speaker.js then
+ * fetches a free photo and its credit from Wikimedia Commons.
  */
 (function () {
   const LONG_EDGE = 2048;
@@ -27,7 +31,10 @@
     corner: 'br', style: 'auto', size: 14, opacity: 90,
     crop_rect: null, out_w: 0, out_h: 0,
     mode: 'photo', quote: '', speaker: '', title: '', where: '', cardSize: 'square', panel: 'light', warn: '',
+    verified: '',      // the words "Find" took from the pasted text, to flag later edits
   };
+  // Speaker finder: people matching the name on Wikidata, and which person/photo is shown.
+  const finder = { people: [], pi: 0, ph: 0, info: null, pending: null };
 
   const logo = new Image();
   logo.src = '/logo.png';
@@ -38,6 +45,7 @@
     own:      { credit: 'Photo: Secret Feeds', note: '' },
     handout:  { credit: '', note: 'Credit the organisation that released it, e.g. "Photo: Ukrainian Presidential Press Service handout".' },
     licensed: { credit: '', note: 'Keep the credit the licence asks for, e.g. "Photo: Jane Doe / CC BY 4.0".' },
+    commons:  { credit: '', note: 'Free licence from Wikimedia Commons. The credit comes from the photo\'s licence page, so keep it as it is.' },
     other:    { credit: '', note: 'Don\'t put your logo on agency photos (Reuters, AP, AFP, Getty) or other accounts\' pictures. ' +
                 'X matches reused images, and a copyright complaint takes the post out of For You. Quote-post the original instead.' },
   };
@@ -189,6 +197,7 @@
     s.crop_rect = c; s.out_w = W; s.out_h = H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);      // under PNGs with transparent parts
     ctx.drawImage(s.img, c.x, c.y, c.w, c.h, 0, 0, W, H);
 
     const margin = Math.round(W * 0.055);
@@ -428,7 +437,13 @@
   };
 
   // ── loading ───────────────────────────────────────────────────────────────
-  async function loadFile(file) {
+  function setSource(value, credit) {
+    s.source = value; $('photo-source').value = value;
+    s.credit = credit; $('photo-credit').value = credit;
+  }
+
+  // `commons` is set when the photo came from Wikimedia Commons: {credit, label}.
+  async function loadFile(file, commons) {
     if (!file || !file.type.startsWith('image/')) { alert('That file isn\'t an image.'); return; }
     let img;
     try {
@@ -440,11 +455,183 @@
     }
     if (!img) { alert('This browser can\'t open that photo format. Try a JPEG or PNG (iPhone: Settings → Camera → Formats → Most Compatible).'); return; }
     s.img = img; s.w = img.width; s.h = img.height; s.fx = 0.5; s.fy = 0.5;
+    if (commons) {
+      setSource('commons', commons.credit);
+    } else if (s.source === 'commons') {
+      // Your own file replaces a Commons photo: its credit no longer applies.
+      setSource('own', SOURCES.own.credit);
+      $('qc-photo-status').hidden = true;
+    }
     $('photo-preview-card').hidden = false;
     $('photo-share-btn').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.jpg', { type: 'image/jpeg' })] }));
-    $('photo-drop-label').textContent = file.name + ' · choose another';
+    $('photo-drop-label').textContent = (commons ? commons.label : file.name) + ' · choose another';
     redraw();
   }
+
+  // ── quote card: find the speaker, their exact words and a free photo ─────
+  function setMode(mode) {
+    s.mode = mode;
+    $('photo-mode-row').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.value === mode));
+    redraw();
+  }
+  function setField(id, value) {
+    const el = $(id);
+    el.value = value;
+    el.dispatchEvent(new Event('input'));      // updates the card and the counters
+  }
+  function el(tag, attrs, text) {
+    const e = document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'onclick') e.onclick = v; else e.setAttribute(k, v); });
+    if (text) e.textContent = text;
+    return e;
+  }
+  function useQuote(words) {
+    s.verified = words;
+    setField('qc-quote', words);
+  }
+
+  function showFinder(data) {
+    $('qc-find-out').hidden = false;
+    const status = $('qc-find-status');
+    status.className = 'finder-status ' + (data.status === 'exact' ? 'ok' : 'warn');
+    status.textContent = (data.status === 'exact' ? '✓ ' : '') + data.note;
+
+    const opts = $('qc-find-options');
+    opts.textContent = '';
+    if ((data.options || []).length && data.status === 'exact') {
+      opts.appendChild(el('div', { class: 'note' }, 'Other quoted words in your text. Tap one only if the speaker said it:'));
+    }
+    (data.options || []).forEach(o => opts.appendChild(el('button', { class: 'option-btn', type: 'button', onclick: () => {
+      useQuote(o);
+      status.className = 'finder-status ok';
+      status.textContent = '✓ Using the quote you picked. Check it is the speaker\'s words, not someone else\'s quoted in the same post.';
+    } }, '“' + o + '”')));
+
+    const rep = $('qc-find-reported');
+    rep.textContent = data.status !== 'exact' && data.reported ? 'What the post says they said: ' + data.reported : '';
+    rep.style.display = rep.textContent ? 'block' : 'none';
+
+    // Links to find their own words, only when the text didn't have them.
+    finder.terms = data.status === 'exact' ? '' : [data.speaker].concat(data.terms || []).filter(Boolean).join(' ');
+    renderLinks('');
+  }
+
+  // Where to find their own words: their X account (from Wikidata) and a news search.
+  function renderLinks(handle) {
+    const box = $('qc-find-links');
+    box.textContent = '';
+    if (!finder.terms) { box.style.display = 'none'; return; }
+    box.appendChild(document.createTextNode('Find their own words: '));
+    if (handle) {
+      box.appendChild(el('a', { href: 'https://x.com/' + encodeURIComponent(handle), target: '_blank', rel: 'noopener' }, '@' + handle + ' on X'));
+      box.appendChild(document.createTextNode(' · '));
+    }
+    box.appendChild(el('a', { href: 'https://news.google.com/search?q=' + encodeURIComponent(finder.terms), target: '_blank', rel: 'noopener' }, 'search the news'));
+    box.appendChild(document.createTextNode('. Copy their post or statement, paste it above, tick "own post" and press Find again.'));
+    box.style.display = 'block';
+  }
+
+  function photoStatus(parts) {
+    const box = $('qc-photo-status');
+    box.textContent = '';
+    parts.forEach(p => box.appendChild(typeof p === 'string' ? document.createTextNode(p) : p));
+    box.hidden = false;
+  }
+
+  async function findPhoto(name) {
+    finder.people = []; finder.info = null; finder.pending = null;
+    if (!name) { $('qc-photo-status').hidden = true; return; }
+    photoStatus([`Looking for a free photo of ${name}…`]);
+    try {
+      finder.people = await SFSpeaker.people(name);
+    } catch (e) {
+      photoStatus(['Couldn\'t reach Wikimedia Commons right now. Choose a photo yourself: an official handout or a Creative Commons photo.']);
+      return;
+    }
+    const top = finder.people[0];
+    renderLinks(top ? top.x : '');
+    const withPhotos = finder.people.filter(p => p.photos.length);
+    if (!withPhotos.length) {
+      photoStatus([top ? `Wikimedia Commons has no free photo of ${top.name}. ` : `No match on Wikimedia for "${name}". `,
+                   'Choose a photo yourself: an official handout or a Creative Commons photo.']);
+      return;
+    }
+    finder.people = withPhotos;
+    return showPhoto(0, 0);
+  }
+
+  // Show person pi's photo number ph. Skips photos whose licence isn't clear.
+  async function showPhoto(pi, ph) {
+    const p = finder.people[pi];
+    for (; ph < p.photos.length; ph++) {
+      let info = null;
+      try { info = await SFSpeaker.photoInfo(p.photos[ph]); } catch (e) { info = null; }
+      if (!info) continue;
+      finder.pi = pi; finder.ph = ph; finder.info = info;
+      // Don't swap out a photo you chose yourself; offer this one instead.
+      if (s.img && s.source !== 'commons') { finder.pending = info; renderPhotoStatus(p, info, true); return; }
+      return applyPhoto(p, info);
+    }
+    photoStatus([`No usable free photo of ${p.name} on Wikimedia Commons. Choose a photo yourself.`]);
+  }
+
+  async function applyPhoto(p, info) {
+    photoStatus([`Loading the photo of ${p.name}…`]);
+    try {
+      const file = await SFSpeaker.download(info);
+      await loadFile(file, { credit: info.credit, label: 'Wikimedia Commons: ' + p.name });
+      finder.pending = null;
+      renderPhotoStatus(p, info, false);
+    } catch (e) {
+      photoStatus(['Couldn\'t load the photo from Wikimedia Commons. Choose a photo yourself.']);
+    }
+  }
+
+  function renderPhotoStatus(p, info, offer) {
+    const thumb = el('img', { src: info.url, alt: p.name, crossorigin: 'anonymous' });
+    const body = el('div');
+    const who = el('div', { class: 'finder-who' }, p.name + (p.description ? ' · ' + p.description : ''));
+    body.appendChild(who);
+    body.appendChild(el('div', {}, `${info.licence}${info.author ? ' · ' + info.author : ''} · `));
+    body.lastChild.appendChild(el('a', { href: info.page, target: '_blank', rel: 'noopener' }, 'licence page'));
+    if (info.width < 900) body.appendChild(el('div', { class: 'note-warn' }, `Small photo (${info.width} px wide): it may look soft on the card.`));
+    const acts = el('div', { class: 'finder-acts' });
+    if (offer) acts.appendChild(el('button', { class: 'link-btn', type: 'button', onclick: () => applyPhoto(p, info) }, 'Use this photo'));
+    const pi = finder.pi, ph = finder.ph;
+    if (ph + 1 < p.photos.length) acts.appendChild(el('button', { class: 'link-btn', type: 'button', onclick: () => showPhoto(pi, ph + 1) }, 'Another photo'));
+    else if (ph > 0) acts.appendChild(el('button', { class: 'link-btn', type: 'button', onclick: () => showPhoto(pi, 0) }, 'First photo'));
+    if (pi + 1 < finder.people.length) acts.appendChild(el('button', { class: 'link-btn', type: 'button', onclick: () => showPhoto(pi + 1, 0) }, 'Wrong person?'));
+    body.appendChild(acts);
+    photoStatus([thumb, body]);
+  }
+
+  window.findSpeaker = async function () {
+    const text = $('qc-paste-input').value.trim();
+    if (!text) { $('qc-paste-input').focus(); return; }
+    if (s.mode !== 'quote') setMode('quote');
+    const btn = $('qc-find-btn');
+    btn.disabled = true; btn.textContent = 'Finding…';
+    $('qc-find-error').style.display = 'none';
+    try {
+      const resp = await fetch('/speaker', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, own_words: $('qc-own').checked }) });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      if (data.speaker) setField('qc-speaker', data.speaker);
+      setField('qc-title', data.role || '');
+      setField('qc-where', data.where || '');
+      // Only words found in your text go in the quote box. No match means an empty box, not a guess.
+      if (data.status === 'exact') useQuote(data.quote); else { s.verified = ''; setField('qc-quote', ''); }
+      showFinder(data);
+      await findPhoto(data.speaker);
+    } catch (e) {
+      $('qc-find-error').textContent = 'Error: ' + e.message;
+      $('qc-find-error').style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Find their words and photo';
+    }
+  };
+  window.findSpeakerPhoto = () => findPhoto(s.speaker.trim());
 
   // ── wiring ────────────────────────────────────────────────────────────────
   function bindSeg(rowId, key) {
@@ -495,7 +682,7 @@
     drop.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
 
     $('photo-source').addEventListener('change', e => {
-      const prev = SOURCES[s.source].credit;
+      const prev = s.source === 'commons' && finder.info ? finder.info.credit : SOURCES[s.source].credit;
       s.source = e.target.value;
       if (!s.credit || s.credit === prev) { s.credit = SOURCES[s.source].credit; $('photo-credit').value = s.credit; }
       redraw();
@@ -517,6 +704,12 @@
       const n = cleanQuote(e.target.value).length;
       $('qc-quote-count').textContent = n + ' characters' + (n > 220 ? ' · long for a card, aim for under 220' : '');
       $('qc-quote-count').className = 'char-count' + (n > 220 ? ' over' : '');
+      // Words found by "Find" were checked against the post. Say so if they've been changed since.
+      const changed = s.verified && cleanQuote(e.target.value) !== cleanQuote(s.verified);
+      $('qc-quote-check').textContent = changed
+        ? 'You\'ve changed the words found in the post. The card must show exactly what they said: only cut at a sentence break and mark the cut with …'
+        : '';
+      $('qc-quote-check').style.display = changed ? 'block' : 'none';
     });
     bindSeg('photo-corner-row', 'corner');
     bindSeg('photo-style-row', 'style');
