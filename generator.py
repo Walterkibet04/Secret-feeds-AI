@@ -333,23 +333,23 @@ SOURCE POST (copied from X; everything between <<< and >>>, the markers are not 
 Write ONLY the quote post text. No labels. No explanation."""
 
 # Caption for a quote card: the image already shows the words, the speaker and the date.
-CAPTION_PROMPT = """You are writing the X caption for a Secret Feeds quote card. The image already shows a person's exact words, their name, title and the date.
+CAPTION_PROMPT = """You are writing the X caption for a Secret Feeds {card_kind}. The image already shows {card_shows}, their name, title and the date.
 
 """ + VOICE + """
 
 YOUR JOB: a short caption, one or two lines, under 200 characters.
 - Start with the flag of the speaker's country, then who is speaking (country, title, full name) and the topic, ending with a colon. For example: "🇺🇸 US President Donald Trump on tariffs:" or "🇰🇪 Kenyan President William Ruto on the death of Jackson Karua:"
 - Optionally add one short line of context, only from the details below or long-established background.
-- Never repeat or paraphrase the quote. Readers can see it in the image.
+- Never repeat or paraphrase the {text_name}. Readers can see it in the image.
 - No question. No hashtags. No quotation marks.
 
-QUOTE CARD DETAILS (between <<< and >>>; the markers are not quotation marks):
+{card_label} DETAILS (between <<< and >>>; the markers are not quotation marks):
 <<<
 Speaker: {speaker}
 Title given: {title}
 Where it was said: {where}
 Date: {date}
-Exact words: {quote}
+{text_label}: {quote}
 >>>
 
 Write ONLY the caption."""
@@ -362,16 +362,17 @@ SPEAKER_PROMPT = FACTS_BLOCK + """
 
 Below, between <<< and >>>, is a post or article pasted from X or a news site. The markers are not quotation marks.
 
-Do five things:
+Do six things:
 1. "speaker": whose words this story is about. Give the full name the way English-language news writes it, for example "Volodymyr Zelensky", "Donald Trump", "William Ruto". Fix an obvious misspelling of a well-known name. If it's a body rather than a person (a ministry, an army, a party), give its name.
 2. "role": their role today, short, the way a caption would put it, for example "President of Ukraine", "US President", "Kenyan Foreign Minister". Take it from the input, CURRENT FACTS or WORLD LEADERS. Leave it empty if none of them says.
 3. "where": where they said it, only if the input says, for example "on X", "in his nightly video address", "at a press conference in Kyiv". Otherwise "".
 4. "quote": the speaker's own words, copied EXACTLY from the input, character for character. Pick the one or two sentences that carry the news, ideally 8 to 45 words; shorter is fine if that's all there is. {own_words_rule}
    If the input contains none of the speaker's own words, return "" for quote. Never write, reword, translate, shorten or finish a quote. A headline that only reports what someone said has no quote, and "" is the right answer.
 5. "reported": what the speaker said or claimed, as one short line in the third person, without quote marks and without their name, using only facts in the input. Example: Russia fired North Korean missiles at an energy facility in Ukraine
+6. "headline": the same news as a short headline in a reporter's words, 6 to 14 words, for a news card. Name the speaker by surname (or the body's short name), present tense, no quote marks, no emojis, no full stop, and nothing the input doesn't say. Examples: Rubio calls Iran's demands absurd and outrageous / Zelensky says Russia fired North Korean missiles at Ukrainian energy site
 
 Reply with one JSON object and nothing else:
-{{"speaker": "", "role": "", "where": "", "quote": "", "reported": ""}}
+{{"speaker": "", "role": "", "where": "", "quote": "", "reported": "", "headline": ""}}
 
 <<<
 {text}
@@ -540,10 +541,21 @@ def build_quote_prompt(tweet: str, angle: str) -> str:
                  angle_rules=a["rules"], angle_example=a["example"])
 
 
-def build_caption_prompt(quote: str, speaker: str, title: str, where: str, date: str) -> str:
+# Quote cards show exact words; reported cards show a headline in Secret Feeds' own words.
+CARD_KINDS = {
+    "quote": dict(card_kind="quote card", card_shows="a person's exact words", text_name="quote",
+                  card_label="QUOTE CARD", text_label="Exact words"),
+    "reported": dict(card_kind="reported news card", card_shows="a headline reporting what a person said",
+                     text_name="headline", card_label="NEWS CARD",
+                     text_label="Headline on the card (our words, not theirs)"),
+}
+
+
+def build_caption_prompt(quote: str, speaker: str, title: str, where: str, date: str, kind: str = "quote") -> str:
     source = f"{title} {speaker}: {quote}"
     return _fill(CAPTION_PROMPT, source, quote=quote, speaker=speaker,
-                 title=title or "(not given)", where=where or "(not given)", date=date or "(not given)")
+                 title=title or "(not given)", where=where or "(not given)", date=date or "(not given)",
+                 **CARD_KINDS.get(kind, CARD_KINDS["quote"]))
 
 
 def build_speaker_prompt(text: str, own_words: bool = False) -> str:

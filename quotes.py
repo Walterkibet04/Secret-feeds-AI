@@ -151,7 +151,19 @@ def parse_reply(reply):
         return {}
     if not isinstance(data, dict):
         return {}
-    return {k: str(data.get(k) or "").strip() for k in ("speaker", "role", "where", "quote", "reported")}
+    return {k: str(data.get(k) or "").strip() for k in ("speaker", "role", "where", "quote", "reported", "headline")}
+
+
+def clean_headline(h):
+    """A reported-card headline is in our words, so it carries no quote marks.
+
+    Quote marks would tell readers these are the speaker's exact words, which nobody checked.
+    Apostrophes (Iran's) stay.
+    """
+    h = re.sub(r"[\"“”«»„]", "", h or "")
+    h = re.sub(r"(?<![\w’'])[‘'](.+?)[’'](?![\w])", r"\1", h)
+    h = re.sub(r"\s+", " ", h).strip().rstrip(".")
+    return h[:160]
 
 
 def analyse(text, ai_reply, own_words=False):
@@ -189,6 +201,7 @@ def analyse(text, ai_reply, own_words=False):
         "status": status,
         "options": options,
         "reported": reported,
+        "headline": clean_headline(data.get("headline", "")),
         "terms": search_terms(reported or text, speaker),
         "note": note,
     }

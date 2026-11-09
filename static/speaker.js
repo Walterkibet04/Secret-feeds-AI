@@ -5,6 +5,7 @@
  *    which must be a Wikimedia Commons file, so it always has a free licence, plus their
  *    X account (P2002) for finding their own posts.
  * 2. Commons gives the photo's licence and author, which become the credit on the card.
+ * 3. "More photos": every Commons photo tagged as showing that person, newest first.
  * Photos with no clear licence are skipped.
  */
 (function () {
@@ -77,10 +78,10 @@
   }
 
   // Licence, author and a card-sized URL for one Commons file. Null if the licence isn't clear.
-  async function photoInfo(file) {
+  async function photoInfo(file, width) {
     const data = await api(COMMONS, {
       action: 'query', prop: 'imageinfo', titles: 'File:' + file, iiprop: 'url|extmetadata|mime|size',
-      iiurlwidth: String(WIDTH), iiextmetadatafilter: 'LicenseShortName|Artist|AttributionRequired|NonFree|UsageTerms',
+      iiurlwidth: String(width || WIDTH), iiextmetadatafilter: 'LicenseShortName|Artist|AttributionRequired|NonFree|UsageTerms',
     });
     const page = Object.values((data.query && data.query.pages) || {})[0];
     const ii = page && page.imageinfo && page.imageinfo[0];
@@ -93,10 +94,34 @@
     const who = author(get('Artist'));
     return {
       file, url: ii.thumburl || ii.url, page: ii.descriptionurl,
-      width: ii.thumbwidth || ii.width, height: ii.thumbheight || ii.height,
+      width: ii.thumbwidth || ii.width, height: ii.thumbheight || ii.height, origWidth: ii.width,
       licence, author: who, credit: creditLine(who, licence),
       shareAlike: /SA/.test(licence),
     };
+  }
+
+  // More photos of a person: Commons files tagged as showing them ("depicts", P180), newest
+  // uploads first. Small images, video and audio are left out. Returns {photos, next}; pass
+  // `next` back as offset to get the following page.
+  const MIN_WIDTH = 800;
+  async function morePhotos(qid, offset) {
+    const data = await api(COMMONS, {
+      action: 'query', generator: 'search', gsrsearch: 'haswbstatement:P180=' + qid, gsrnamespace: '6',
+      gsrlimit: '40', gsrsort: 'create_timestamp_desc', gsroffset: String(offset || 0),
+      prop: 'imageinfo', iiprop: 'url|extmetadata|mime|size', iiurlwidth: '320',
+      iiextmetadatafilter: 'LicenseShortName|NonFree',
+    });
+    const pages = Object.values((data.query && data.query.pages) || {}).sort((a, b) => a.index - b.index);
+    const photos = [];
+    pages.forEach(p => {
+      const ii = p.imageinfo && p.imageinfo[0];
+      if (!ii || !/^image\/(jpeg|png|webp)$/.test(ii.mime) || ii.width < MIN_WIDTH) return;
+      const m = ii.extmetadata || {};
+      const licence = plain(m.LicenseShortName && m.LicenseShortName.value);
+      if (!licence || /^true$/i.test(m.NonFree && m.NonFree.value)) return;
+      photos.push({ file: p.title.replace(/^File:/, ''), thumb: ii.thumburl || ii.url, width: ii.width, height: ii.height, licence });
+    });
+    return { photos, next: data.continue && data.continue.gsroffset ? data.continue.gsroffset : null };
   }
 
   async function download(info) {
@@ -107,5 +132,5 @@
     return new File([blob], 'wikimedia-' + info.file.replace(/\.[^.]+$/, '').slice(0, 40) + '.' + ext, { type: blob.type || 'image/jpeg' });
   }
 
-  window.SFSpeaker = { people, photoInfo, download, creditLine };
+  window.SFSpeaker = { people, photoInfo, morePhotos, download, creditLine };
 })();

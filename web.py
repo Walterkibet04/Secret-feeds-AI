@@ -184,12 +184,27 @@ HTML = """<!DOCTYPE html>
   .finder-status.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
   .option-btn { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.84rem; line-height: 1.45; cursor: pointer; }
   .option-btn:hover { border-color: var(--brand); background: var(--accent-soft); }
+  .option-btn.switch-btn { border-color: var(--brand); color: var(--accent); font-weight: 600; }
   .finder-photo { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--field); font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
   .finder-photo img { width: 64px; height: 64px; object-fit: cover; object-position: top; border-radius: 10px; flex: none; background: #F3E6DD; }
   .finder-who { color: var(--text); font-weight: 600; }
   .finder-acts { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
   .finder-photo a, #qc-find-links a { color: var(--accent); font-weight: 600; }
   .note-warn { color: var(--warn-text); }
+  .gallery { margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--field); }
+  .gallery-head { font-size: 0.78rem; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+  .thumb { padding: 0; border: 2px solid transparent; border-radius: 10px; background: #F3E6DD; cursor: pointer; aspect-ratio: 1; overflow: hidden; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb:hover { border-color: var(--border-strong); }
+  .thumb.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .gallery-more { margin-top: 10px; width: 100%; }
+  .zoom-row { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+  .zoom-row label { margin: 0; flex: none; }
+  .zoom-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--brand); }
+  .zoom-val { font-size: 0.75rem; color: var(--muted); width: 3.2em; text-align: right; flex: none; }
+  #photo-canvas.movable { cursor: grab; touch-action: none; }
+  #photo-canvas.movable:active { cursor: grabbing; }
 
   /* Phones: logo and status on one row, tabs on the next */
   @media (max-width: 600px) {
@@ -420,11 +435,12 @@ HTML = """<!DOCTYPE html>
   <!-- PHOTO TAB -->
   <div class="tab" id="tab-photo">
     <div class="page-title">Photo</div>
-    <p class="page-sub">Add your logo and a credit to a photo, or make a quote card: someone's photo with their exact words. It all happens in your browser: the photo is never uploaded.</p>
+    <p class="page-sub">Add your logo and a credit to a photo, make a quote card (someone's photo with their exact words), or a reported card (their photo with the news in your words). It all happens in your browser: the photo is never uploaded.</p>
     <div class="card">
       <div class="fmt-row" id="photo-mode-row" style="margin:0 0 16px">
         <button class="fmt-btn active" data-value="photo">Photo + caption</button>
         <button class="fmt-btn" data-value="quote">Quote card</button>
+        <button class="fmt-btn" data-value="reported">Reported card</button>
       </div>
       <div class="quote-only" hidden style="margin-bottom:18px">
         <label for="qc-paste-input">Paste the post or statement</label>
@@ -440,7 +456,8 @@ HTML = """<!DOCTYPE html>
           <div class="note" id="qc-find-links" style="display:none"></div>
         </div>
         <div class="finder-photo" id="qc-photo-status" hidden></div>
-        <div class="fmt-hint">Only words that appear in your text, inside quotation marks or in the speaker's own post, go on the card. A headline like "Zelensky says Russia fired…" is a reporter's summary, so it has no exact words to take.</div>
+        <div class="gallery" id="qc-gallery" hidden></div>
+        <div class="fmt-hint">On a quote card, only words that appear in your text, inside quotation marks or in the speaker's own post, go on the card. A headline like "Zelensky says Russia fired…" is a reporter's summary, so it has no exact words to take.</div>
       </div>
       <label for="photo-file">Photo</label>
       <label class="drop" id="photo-drop" for="photo-file" style="text-transform:none;letter-spacing:0;font-weight:500;margin:0">
@@ -486,7 +503,14 @@ HTML = """<!DOCTYPE html>
         </div>
       </div>
       <div class="quote-only" hidden>
-        <div class="field">
+        <div class="field reported-only" hidden>
+          <label for="qc-headline">Headline</label>
+          <textarea id="qc-headline" maxlength="160" style="min-height:70px" placeholder="e.g. Rubio calls Iran's demands absurd and outrageous"></textarea>
+          <div class="char-count" id="qc-headline-count">0 / 160</div>
+          <div class="note note-warn" id="qc-headline-check" style="display:none"></div>
+          <div class="fmt-hint">Say what they said in your own words, like a news headline. No quote marks: on a news card those mean exact words. "Find" writes a suggestion from the post; check it says what they said and no more.</div>
+        </div>
+        <div class="field exact-only">
           <label for="qc-quote">Their exact words</label>
           <textarea id="qc-quote" maxlength="600" style="min-height:90px" placeholder="Paste the words exactly as they said or wrote them."></textarea>
           <div class="char-count" id="qc-quote-count">0 characters</div>
@@ -517,10 +541,11 @@ HTML = """<!DOCTYPE html>
           </div>
         </div>
         <div class="field">
-          <label>Text panel</label>
+          <label>Layout</label>
           <div class="fmt-row" id="qc-panel-row" style="margin-top:0">
             <button class="fmt-btn active" data-value="light">Light panel</button>
-            <button class="fmt-btn" data-value="dark">Dark</button>
+            <button class="fmt-btn" data-value="dark">Dark panel</button>
+            <button class="fmt-btn" data-value="side">Side by side</button>
           </div>
         </div>
         <div class="tip" style="margin:14px 0 0">
@@ -567,9 +592,15 @@ HTML = """<!DOCTYPE html>
 
     <div class="card" id="photo-preview-card" hidden>
       <canvas id="photo-canvas" aria-label="Preview of your photo"></canvas>
+      <div class="zoom-row" id="photo-zoom-row">
+        <label for="photo-zoom">Zoom</label>
+        <input type="range" id="photo-zoom" min="100" max="300" step="5" value="100">
+        <span class="zoom-val" id="photo-zoom-val">100%</span>
+        <button class="link-btn" type="button" onclick="resetFrame()">Reset</button>
+      </div>
       <div class="result-meta" style="margin-top:0">
         <span class="result-chars" id="photo-info"></span>
-        <span class="result-chars">Tap the photo to reframe a crop</span>
+        <span class="result-chars" id="photo-frame-hint">Drag the photo to move it</span>
       </div>
       <div class="error" id="photo-export-note"></div>
       <div class="warnings" id="photo-warn"></div>
@@ -1024,15 +1055,16 @@ def quote_endpoint():
 
 @app.route("/caption", methods=["POST"])
 def caption_endpoint():
-    """X caption for a quote card. The card shows the words; the caption says who and what about."""
+    """X caption for a quote card or reported card. The card shows the words; the caption says who and what about."""
     data = request.get_json() or {}
     field = lambda k, n: clean_text(str(data.get(k, ""))).strip()[:n]
     quote, speaker = field("quote", 1000), field("speaker", 120)
+    kind = "reported" if data.get("kind") == "reported" else "quote"
     if not quote or not speaker:
-        return jsonify({"error": "Add the quote and who said it"}), 400
+        return jsonify({"error": "Add the headline and who said it" if kind == "reported" else "Add the quote and who said it"}), 400
     try:
         result, retried = _generate(
-            build_caption_prompt(quote, speaker, field("title", 120), field("where", 120), field("date", 40)),
+            build_caption_prompt(quote, speaker, field("title", 120), field("where", 120), field("date", 40), kind),
             quote,
         )
         return jsonify(_with_overlap({"result": result, "note": retried,
