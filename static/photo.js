@@ -830,9 +830,9 @@
   async function openGallery(pi) {
     const p = finder.people[pi];
     const box = $('qc-gallery');
-    gallery.pi = pi; gallery.next = 0; gallery.seen = new Set(); gallery.busy = false;
+    gallery.pi = pi; gallery.next = { src: 0, offset: 0 }; gallery.seen = new Set(); gallery.busy = false;
     box.textContent = ''; box.hidden = false;
-    box.appendChild(el('div', { class: 'gallery-head' }, `Free photos of ${p.name} on Wikimedia Commons, newest first. Tap one to use it. Group shots work too: zoom in on them under the preview.`));
+    box.appendChild(el('div', { class: 'gallery-head' }, `Free photos of ${p.name} alone, from Wikimedia Commons. Tap one to use it.`));
     gallery.grid = el('div', { class: 'gallery-grid' }); box.appendChild(gallery.grid);
     gallery.msg = el('div', { class: 'note' }); box.appendChild(gallery.msg);
     gallery.more = el('button', { class: 'btn secondary gallery-more', type: 'button', onclick: () => loadGallery(p) }, 'Load more photos');
@@ -848,14 +848,15 @@
     if (gallery.busy || gallery.next === null) return;
     const pi = gallery.pi;
     gallery.busy = true; gallery.more.hidden = true;
-    gallery.msg.textContent = 'Loading photos…';
+    gallery.msg.textContent = `Finding photos of ${p.name} alone…`;
     try {
-      const page = await SFSpeaker.morePhotos(p.id, gallery.next);
+      // Thumbnails appear as each batch arrives; checking who is in each photo takes a moment.
+      const page = await SFSpeaker.morePhotos(p, gallery.next, { skip: gallery.seen,
+        onPhotos: batch => { if (gallery.pi === pi) batch.forEach(ph => addThumb(p, ph)); } });
       if (gallery.pi !== pi) return;
-      page.photos.forEach(ph => addThumb(p, ph));
       gallery.next = page.next;
       gallery.msg.textContent = gallery.grid.childNodes.length ? ''
-        : `Wikimedia Commons has no other free photos of ${p.name}. Choose your own photo below.`;
+        : `Wikimedia Commons has no other free photos of ${p.name} alone. Choose your own photo below.`;
     } catch (e) {
       if (gallery.pi === pi) gallery.msg.textContent = 'Couldn\'t load photos from Wikimedia Commons right now.';
     } finally {

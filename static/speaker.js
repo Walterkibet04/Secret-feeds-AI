@@ -5,7 +5,7 @@
  *    which must be a Wikimedia Commons file, so it always has a free licence, plus their
  *    X account (P2002) for finding their own posts.
  * 2. Commons gives the photo's licence and author, which become the credit on the card.
- * 3. "More photos": every Commons photo tagged as showing that person, newest first.
+ * 3. "More photos": Commons photos of that person alone (nobody else tagged in them).
  * Photos with no clear licence are skipped.
  */
 (function () {
@@ -100,28 +100,103 @@
     };
   }
 
-  // More photos of a person: Commons files tagged as showing them ("depicts", P180), newest
-  // uploads first. Small images, video and audio are left out. Returns {photos, next}; pass
-  // `next` back as offset to get the following page.
-  const MIN_WIDTH = 800;
-  async function morePhotos(qid, offset) {
-    const data = await api(COMMONS, {
-      action: 'query', generator: 'search', gsrsearch: 'haswbstatement:P180=' + qid, gsrnamespace: '6',
-      gsrlimit: '40', gsrsort: 'create_timestamp_desc', gsroffset: String(offset || 0),
-      prop: 'imageinfo', iiprop: 'url|extmetadata|mime|size', iiurlwidth: '320',
-      iiextmetadatafilter: 'LicenseShortName|NonFree',
-    });
-    const pages = Object.values((data.query && data.query.pages) || {}).sort((a, b) => a.index - b.index);
-    const photos = [];
+  // ── "More photos": photos of the person alone ────────────────────────────
+  // Commons records who is in each photo as "depicts" (P180) statements. A photo counts as
+  // "of" the person only if they are tagged and no other person is. Things (a flag, a podium)
+  // can be tagged too; Wikidata says which tags are people.
+  const SPARQL = 'https://query.wikidata.org/sparql';
+  const MIN_WIDTH = 800, WANT = 12, MAX_FETCHES = 3;
+  const isHuman = new Map();
+  async function markHumans(qids) {
+    const need = qids.filter(q => /^Q\d+$/.test(q) && !isHuman.has(q));
+    for (let i = 0; i < need.length; i += 80) {
+      const chunk = need.slice(i, i + 80);
+      const query = `SELECT ?i WHERE { VALUES ?i { ${chunk.map(q => 'wd:' + q).join(' ')} } ?i wdt:P31 wd:Q5 }`;
+      const r = await fetch(SPARQL + '?format=json&query=' + encodeURIComponent(query));
+      if (!r.ok) throw new Error('Wikidata query failed');
+      const people = new Set(((await r.json()).results.bindings || []).map(b => b.i.value.split('/').pop()));
+      chunk.forEach(q => isHuman.set(q, people.has(q)));
+    }
+  }
+
+  // Not everyone in a photo gets tagged, so file names catch the rest: "Blinken meets
+  // President Ruto", "Khamenei and Larijani". Others aren't photos of the person at all.
+  const OTHERS_IN_TITLE = /\b(meets?|met|meeting|greet(s|ed|ing)?|welcom(es|ed|ing)|receiv(es|ed|ing)|host(s|ed|ing)?|bilateral|summit|delegation|family|wife|husband|and|with|vs|versus)\b|&/i;
+  const NOT_A_PHOTO_OF_THEM = /\b(poster|cartoon|caricature|meme|t-?shirt|shirt|logo|signs?|graffiti|mural|banner|protest|display|sticker|mask|statue|wax|doll|stamp|coin|badge|ballot|wanted|drawing|painting|illustration)\b/i;
+
+  const fold = t => t.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  // The file name should name the person ("Ruto", "Zelensky", "Magyar Péter"): photos named
+  // after someone else ("Visit of Valdis Dombrovskis to Kenya") are usually of them. Name parts
+  // are cut to 5 letters so spellings match (Zelenskyy, Zelensky, Zelenskiy).
+  function namesThem(title, name) {
+    const parts = fold(name).split(/[\s-]+/).filter(w => w.length >= 3).map(w => w.slice(0, 5));
+    return !parts.length || parts.some(w => fold(title).includes(w));
+  }
+  function looksSolo(title, name) {
+    const t = title.replace(/\.[a-z0-9]+$/i, '').replace(/[_.()\d-]/g, ' ');    // digits hide words: "20181130summit11"
+    return namesThem(t, name) && !OTHERS_IN_TITLE.test(t) && !NOT_A_PHOTO_OF_THEM.test(t)
+      && (t.match(/,/g) || []).length < 2;                                    // "Rachel Ruto, William Ruto, Joe Biden"
+  }
+
+  // Keep the pages where the person is the only one tagged. Main-subject tags first.
+  async function onlyThem(qid, pages) {
+    if (!pages.length) return [];
+    const data = await api(COMMONS, { action: 'wbgetentities', ids: pages.map(p => 'M' + p.pageid).join('|'), props: 'claims' });
+    const tags = new Map();
     pages.forEach(p => {
-      const ii = p.imageinfo && p.imageinfo[0];
-      if (!ii || !/^image\/(jpeg|png|webp)$/.test(ii.mime) || ii.width < MIN_WIDTH) return;
-      const m = ii.extmetadata || {};
-      const licence = plain(m.LicenseShortName && m.LicenseShortName.value);
-      if (!licence || /^true$/i.test(m.NonFree && m.NonFree.value)) return;
-      photos.push({ file: p.title.replace(/^File:/, ''), thumb: ii.thumburl || ii.url, width: ii.width, height: ii.height, licence });
+      const e = data.entities && data.entities['M' + p.pageid];
+      const st = (e && (e.statements || e.claims)) || {};
+      tags.set(p.pageid, (st.P180 || []).filter(c => c.rank !== 'deprecated' && value(c) && /^Q\d+$/.test(value(c).id || ''))
+        .map(c => ({ id: value(c).id, main: c.rank === 'preferred' })));
     });
-    return { photos, next: data.continue && data.continue.gsroffset ? data.continue.gsroffset : null };
+    const others = [...new Set([...tags.values()].flat().map(t => t.id).filter(id => id !== qid))];
+    let strict = false;
+    try { await markHumans(others); } catch (e) { strict = true; }   // can't check: allow nobody else tagged at all
+    return pages
+      .map(p => ({ p, t: tags.get(p.pageid) }))
+      .filter(({ t }) => t.some(x => x.id === qid) && t.every(x => x.id === qid || (!strict && isHuman.get(x.id) === false)))
+      .map(({ p, t }) => ({ p, main: t.some(x => x.id === qid && x.main) }))
+      .sort((a, b) => b.main - a.main)
+      .map(x => x.p);
+  }
+
+  // Photos of `person` ({id, name}), best first: a search for their name among photos tagged
+  // with them, then all photos tagged with them. Pass `next` back to continue; null = no more.
+  // `skip`: files already shown. `onPhotos`: called with each batch as it arrives, so the
+  // grid fills while the rest loads.
+  async function morePhotos(person, cursor, opts) {
+    const { skip = new Set(), onPhotos = null } = opts || {};
+    if (!/^Q\d+$/.test(person.id || '')) return { photos: [], next: null };
+    const name = (person.name || '').replace(/["\\]/g, '').trim();
+    const searches = (name ? [`"${name}" haswbstatement:P180=${person.id}`] : []).concat(`haswbstatement:P180=${person.id}`);
+    let { src, offset } = cursor || { src: 0, offset: 0 };
+    const photos = [], seen = new Set([...skip].map(f => 'File:' + f));
+    for (let fetches = 0; src < searches.length && photos.length < WANT && fetches < MAX_FETCHES; fetches++) {
+      const data = await api(COMMONS, {
+        action: 'query', generator: 'search', gsrsearch: searches[src], gsrnamespace: '6', gsrlimit: '40',
+        gsroffset: String(offset), prop: 'imageinfo', iiprop: 'url|extmetadata|mime|size', iiurlwidth: '320',
+        iiextmetadatafilter: 'LicenseShortName|NonFree',
+      });
+      const pages = Object.values((data.query && data.query.pages) || {}).sort((a, b) => a.index - b.index).filter(p => {
+        const ii = p.imageinfo && p.imageinfo[0];
+        // Photos only: PNGs on Commons are mostly screenshots and graphics.
+        if (!ii || ii.mime !== 'image/jpeg' || ii.width < MIN_WIDTH) return false;
+        const m = ii.extmetadata || {};
+        if (!plain(m.LicenseShortName && m.LicenseShortName.value) || /^true$/i.test(m.NonFree && m.NonFree.value)) return false;
+        return !seen.has(p.title) && looksSolo(p.title.replace(/^File:/, ''), name);
+      });
+      const batch = (await onlyThem(person.id, pages)).map(p => {
+        seen.add(p.title);
+        const ii = p.imageinfo[0];
+        return { file: p.title.replace(/^File:/, ''), thumb: ii.thumburl || ii.url, width: ii.width, height: ii.height,
+                 licence: plain(ii.extmetadata.LicenseShortName.value) };
+      });
+      photos.push(...batch);
+      if (onPhotos && batch.length) onPhotos(batch);
+      if (data.continue && data.continue.gsroffset) offset = data.continue.gsroffset;
+      else { src++; offset = 0; }
+    }
+    return { photos, next: src < searches.length ? { src, offset } : null };
   }
 
   async function download(info) {
